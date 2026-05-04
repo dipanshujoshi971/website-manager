@@ -21,7 +21,11 @@ function PreviewPage() {
       .finally(() => setLoading(false))
   }, [siteId])
 
-  const previewUrl = site?.previewUrl || (site?.customDomain ? `https://${site.customDomain}` : null)
+  // Always load the /site template instance with ?siteId=... so the iframe shows
+  // the editable site. site.previewUrl / customDomain are public-publish URLs and
+  // aren't guaranteed to be valid template instances — ignore them here.
+  const PREVIEW_BASE = (import.meta.env.VITE_SITE_PREVIEW_URL as string) || 'http://localhost:5173'
+  const previewUrl = site ? `${PREVIEW_BASE}/?siteId=${encodeURIComponent(site.siteId)}` : null
 
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
@@ -29,18 +33,7 @@ function PreviewPage() {
     </div>
   )
 
-  if (!previewUrl) return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4 text-center px-4">
-      <p className="text-gray-500 text-sm">No preview URL set for this project.</p>
-      <Link
-        to="/projects/$siteId/settings"
-        params={{ siteId }}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-      >
-        Go to Settings
-      </Link>
-    </div>
-  )
+  if (!previewUrl) return null
 
   return (
     <div className="flex flex-col h-screen">

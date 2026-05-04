@@ -19,12 +19,16 @@ export const Route = createFileRoute("/about")({
 
 function AboutPage() {
   const page = usePage("about");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
+      {visible('hero') && (
       <PageHero eyebrow={page.hero.eyebrow} title={page.hero.title} subtitle={page.hero.subtitle} />
+      )}
 
       {/* Mission */}
+      {visible('mission') && (
       <section className="py-20">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
           <FadeUp>
@@ -33,8 +37,10 @@ function AboutPage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Stats */}
+      {visible('stats') && (
       <section className="border-y border-border bg-card py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">
@@ -49,8 +55,10 @@ function AboutPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Team */}
+      {visible('team') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp className="overflow-hidden rounded-3xl shadow-soft">
@@ -63,8 +71,10 @@ function AboutPage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Values */}
+      {visible('values') && (
       <section className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -86,8 +96,10 @@ function AboutPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Timeline */}
+      {visible('timeline') && (
       <section className="py-20">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -107,8 +119,10 @@ function AboutPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* City banner */}
+      {visible('cityBanner') && (
       <section className="relative overflow-hidden">
         <img src={page.cityBanner.image || cityImg} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.15_0.04_255/0.92)] to-[oklch(0.2_0.06_255/0.55)]" />
@@ -119,8 +133,10 @@ function AboutPage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Contact */}
+      {visible('contact') && (
       <section id="contact" className="bg-muted py-20">
         <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp>
@@ -140,6 +156,7 @@ function AboutPage() {
           </FadeUp>
         </div>
       </section>
+      )}
     </SiteLayout>
   );
 }

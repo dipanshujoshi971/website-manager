@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
 import { api, type Site, type SiteContent, TEMPLATE_LABELS } from '@/lib/api'
 import { toast } from 'sonner'
-import { Loader2, Save, Eye } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Eye, EyeOff, Globe, Loader2, RefreshCw, Rocket, Save } from 'lucide-react'
 
 // Shared editors
 import { GlobalEditor } from '@/components/editors/GlobalEditor'
@@ -31,7 +31,7 @@ import { AboutContactEditor } from '@/components/editors/AboutContactEditor'
 import { SafetyTrustEditor } from '@/components/editors/SafetyTrustEditor'
 import { FaqEditor } from '@/components/editors/FaqEditor'
 import { SimpleBannerEditor } from '@/components/editors/SimpleBannerEditor'
-import { StatListEditor } from '@/components/editors/shared'
+import { StatListEditor, SectionVisibilityToggle } from '@/components/editors/shared'
 
 export const Route = createFileRoute('/projects/$siteId/edit')({
   component: EditContent,
@@ -169,10 +169,47 @@ function EditContent() {
   const [draft, setDraft] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const navigate = useNavigate()
+  const [deploying, setDeploying] = useState(false)
   const [activeSection, setActiveSection] = useState<string>('')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewReady, setPreviewReady] = useState(false)
+  const [previewKey, setPreviewKey] = useState(0)
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null)
 
   const isLaunchpad = site?.templateType === 'gonex-launchpad'
+
+  // Live editor preview always loads the /site template instance with ?siteId=...
+  // We deliberately ignore site.previewUrl / customDomain here — those describe where
+  // the *published* site lives, not the editable template needed for postMessage drafts.
+  const PREVIEW_BASE = (import.meta.env.VITE_SITE_PREVIEW_URL as string) || 'http://localhost:5173'
+  const previewSrc = site
+    ? `${PREVIEW_BASE}/?siteId=${encodeURIComponent(site.siteId)}&preview=1`
+    : ''
+  const previewOrigin = (() => {
+    try { return new URL(PREVIEW_BASE).origin } catch { return '*' }
+  })()
+
+  // Listen for the iframe's "I'm ready" handshake, then start pushing drafts.
+  useEffect(() => {
+    if (!previewOpen) {
+      setPreviewReady(false)
+      return
+    }
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'preview:ready') setPreviewReady(true)
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [previewOpen, previewKey])
+
+  // Push current draft to the iframe whenever it changes (and once on ready).
+  useEffect(() => {
+    if (!previewOpen || !previewReady) return
+    previewIframeRef.current?.contentWindow?.postMessage(
+      { type: 'preview:content', content: draft },
+      previewOrigin,
+    )
+  }, [draft, previewOpen, previewReady, previewOrigin])
 
   useEffect(() => {
     Promise.all([api.getSite(siteId), api.getContent(siteId)])
@@ -196,11 +233,36 @@ function EditContent() {
     try {
       const updated = await api.updateContent(siteId, draft)
       setContentRow(updated)
-      toast.success('Content published!')
+      toast.success('Content saved!')
     } catch (e: any) {
       toast.error(e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDeploy() {
+    setDeploying(true)
+    try {
+      const liveUrl = await api.deployLocal(siteId)
+      // Refresh site to get updated cfPagesProject / previewUrl
+      const updated = await api.getSite(siteId)
+      setSite(updated)
+      toast.success(
+        <span>
+          Deployed!{' '}
+          {liveUrl && (
+            <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="underline font-medium">
+              {liveUrl}
+            </a>
+          )}
+        </span>,
+        { duration: 10000 },
+      )
+    } catch (e: any) {
+      toast.error(`Deploy failed: ${e.message}`)
+    } finally {
+      setDeploying(false)
     }
   }
 
@@ -213,30 +275,73 @@ function EditContent() {
 
   const templateSections = TEMPLATE_SECTIONS[site.templateType] ?? []
   const allSections = [...SHARED_SECTIONS, ...templateSections]
+  const liveUrl = site.cfPagesProject ? `https://${site.cfPagesProject}.pages.dev` : null
 
   return (
     <div className="flex flex-col h-full">
       {/* Topbar */}
-      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shrink-0">
-        <div>
-          <h1 className="font-semibold text-gray-900">{site.name}</h1>
-          <p className="text-xs text-gray-500">{TEMPLATE_LABELS[site.templateType]}</p>
+      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shrink-0 gap-4">
+        {/* Left: site info */}
+        <div className="min-w-0">
+          <h1 className="font-semibold text-gray-900 truncate">{site.name}</h1>
+          <p className="text-xs text-gray-500 truncate">{TEMPLATE_LABELS[site.templateType]}</p>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Live URL chip — shown when deployed */}
+          {liveUrl && (
+            <a
+              href={liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 pl-2.5 pr-3 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="max-w-[180px] truncate">{liveUrl.replace('https://', '')}</span>
+              <ExternalLink className="h-3 w-3 opacity-60 flex-shrink-0" />
+            </a>
+          )}
+
+          {/* Preview toggle */}
           <button
             type="button"
-            onClick={() => navigate({ to: '/preview/$siteId', params: { siteId } })}
-            className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            onClick={() => setPreviewOpen((v) => !v)}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              previewOpen
+                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
           >
-            <Eye className="h-4 w-4" /> Preview
+            {previewOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <span className="hidden sm:inline">{previewOpen ? 'Hide Preview' : 'Preview'}</span>
           </button>
+
+          {/* Save content */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? 'Publishing...' : 'Publish'}
+            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save'}</span>
+          </button>
+
+          {/* Deploy to CF Pages */}
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="flex items-center gap-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 px-3 py-2 text-sm font-semibold text-white transition-colors"
+          >
+            {deploying
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : liveUrl
+                ? <Globe className="h-4 w-4" />
+                : <Rocket className="h-4 w-4" />
+            }
+            <span className="hidden sm:inline">
+              {deploying ? 'Deploying…' : liveUrl ? 'Redeploy' : 'Deploy'}
+            </span>
           </button>
         </div>
       </div>
@@ -274,7 +379,7 @@ function EditContent() {
         </div>
 
         {/* Editor panel */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className={`${previewOpen ? 'w-[480px] shrink-0 border-r border-gray-200' : 'flex-1'} overflow-auto p-6`}>
           <div className="max-w-2xl">
             <ActiveEditor
               section={activeSection}
@@ -283,6 +388,40 @@ function EditContent() {
             />
           </div>
         </div>
+
+        {/* Live preview pane — postMessages the current draft to /site */}
+        {previewOpen && (
+          <div className="flex flex-1 flex-col bg-gray-100">
+            <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 shrink-0">
+              <span className="h-2 w-2 rounded-full bg-green-400 shrink-0" />
+              <span className="flex-1 truncate font-mono text-xs text-gray-500">{previewSrc}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewKey((k) => k + 1)}
+                className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                title="Reload preview"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+              <a
+                href={previewSrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                title="Open in new tab"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+            <iframe
+              key={previewKey}
+              ref={previewIframeRef}
+              src={previewSrc}
+              className="flex-1 w-full border-0 bg-white"
+              title={`Live preview — ${site.name}`}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -299,6 +438,32 @@ function SidebarItem({ label, active, onClick }: { label: string; active: boolea
   )
 }
 
+// Wraps a section editor with a "Show on page" toggle that drives
+// `<page>.sectionsVisible.<key>` in the draft. /site reads the same path.
+function WithVisibility({
+  pagePath, label, draft, onChange, children,
+}: {
+  pagePath: string                 // e.g. "home.hero" or "ride.pricing"
+  label?: string
+  draft: Record<string, unknown>
+  onChange: (path: string, value: unknown) => void
+  children: React.ReactNode
+}) {
+  const [page, key] = pagePath.split('.')
+  const visPath = `${page}.sectionsVisible.${key}`
+  const visible = getPath(draft, visPath) !== false
+  return (
+    <div className="space-y-4">
+      <SectionVisibilityToggle
+        visible={visible}
+        onToggle={(v) => onChange(visPath, v)}
+        label={label ?? `Show "${key}" on the ${page} page`}
+      />
+      {children}
+    </div>
+  )
+}
+
 // ── Route section keys to content paths ──────────────────────────────────────
 function ActiveEditor({ section, draft, onChange }: {
   section: string
@@ -312,13 +477,29 @@ function ActiveEditor({ section, draft, onChange }: {
     case 'navbar':
       return <NavbarEditor value={getPath(draft, 'global.navbar') ?? {}} onChange={(v) => onChange('global.navbar', v)} />
     case 'hero':
-      return <HeroEditor value={getPath(draft, 'home.hero') ?? {}} onChange={(v) => onChange('home.hero', v)} />
+      return (
+        <WithVisibility pagePath="home.hero" label="Show Hero on Home page" draft={draft} onChange={onChange}>
+          <HeroEditor value={getPath(draft, 'home.hero') ?? {}} onChange={(v) => onChange('home.hero', v)} />
+        </WithVisibility>
+      )
     case 'howItWorks':
-      return <HowItWorksEditor value={getPath(draft, 'home.howItWorks') ?? {}} onChange={(v) => onChange('home.howItWorks', v)} />
+      return (
+        <WithVisibility pagePath="home.howItWorks" label="Show How It Works on Home page" draft={draft} onChange={onChange}>
+          <HowItWorksEditor value={getPath(draft, 'home.howItWorks') ?? {}} onChange={(v) => onChange('home.howItWorks', v)} />
+        </WithVisibility>
+      )
     case 'stats':
-      return <StatsEditor value={getPath(draft, 'home.stats') ?? {}} onChange={(v) => onChange('home.stats', v)} />
+      return (
+        <WithVisibility pagePath="home.stats" label="Show Stats on Home page" draft={draft} onChange={onChange}>
+          <StatsEditor value={getPath(draft, 'home.stats') ?? {}} onChange={(v) => onChange('home.stats', v)} />
+        </WithVisibility>
+      )
     case 'appDownload':
-      return <AppDownloadEditor value={getPath(draft, 'home.download') ?? {}} onChange={(v) => onChange('home.download', v)} />
+      return (
+        <WithVisibility pagePath="home.download" label="Show App Download on Home page" draft={draft} onChange={onChange}>
+          <AppDownloadEditor value={getPath(draft, 'home.download') ?? {}} onChange={(v) => onChange('home.download', v)} />
+        </WithVisibility>
+      )
     case 'footer':
       return <FooterEditor value={getPath(draft, 'global.footer') ?? {}} onChange={(v) => onChange('global.footer', v)} />
 
@@ -332,130 +513,272 @@ function ActiveEditor({ section, draft, onChange }: {
 
     // ── Launchpad: Home Page ──────────────────────────────────────────────────
     case 'lp.home.hero':
-      return <HeroEditor value={getPath(draft, 'home.hero') ?? {}} onChange={(v) => onChange('home.hero', v)} />
+      return (
+        <WithVisibility pagePath="home.hero" label="Show Hero on Home page" draft={draft} onChange={onChange}>
+          <HeroEditor value={getPath(draft, 'home.hero') ?? {}} onChange={(v) => onChange('home.hero', v)} />
+        </WithVisibility>
+      )
     case 'lp.home.stats':
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Stats</h2>
-          <StatListEditor value={getPath(draft, 'home.stats') ?? []} onChange={(v) => onChange('home.stats', v)} />
-        </div>
+        <WithVisibility pagePath="home.stats" label="Show Stats on Home page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Stats</h2>
+            <StatListEditor value={getPath(draft, 'home.stats') ?? []} onChange={(v) => onChange('home.stats', v)} />
+          </div>
+        </WithVisibility>
       )
     case 'lp.home.howItWorks':
-      return <HowItWorksEditor value={getPath(draft, 'home.howItWorks') ?? {}} onChange={(v) => onChange('home.howItWorks', v)} />
+      return (
+        <WithVisibility pagePath="home.howItWorks" label="Show How It Works on Home page" draft={draft} onChange={onChange}>
+          <HowItWorksEditor value={getPath(draft, 'home.howItWorks') ?? {}} onChange={(v) => onChange('home.howItWorks', v)} />
+        </WithVisibility>
+      )
     case 'lp.home.whyUs':
-      return <WhyUsEditor value={getPath(draft, 'home.whyUs') ?? {}} onChange={(v) => onChange('home.whyUs', v)} />
+      return (
+        <WithVisibility pagePath="home.whyUs" label="Show Why Us on Home page" draft={draft} onChange={onChange}>
+          <WhyUsEditor value={getPath(draft, 'home.whyUs') ?? {}} onChange={(v) => onChange('home.whyUs', v)} />
+        </WithVisibility>
+      )
     case 'lp.home.cities':
-      return <CitiesEditor value={getPath(draft, 'home.cities') ?? {}} onChange={(v) => onChange('home.cities', v)} />
+      return (
+        <WithVisibility pagePath="home.cities" label="Show Cities on Home page" draft={draft} onChange={onChange}>
+          <CitiesEditor value={getPath(draft, 'home.cities') ?? {}} onChange={(v) => onChange('home.cities', v)} />
+        </WithVisibility>
+      )
     case 'lp.home.download':
-      return <AppDownloadEditor value={getPath(draft, 'home.download') ?? {}} onChange={(v) => onChange('home.download', v)} />
+      return (
+        <WithVisibility pagePath="home.download" label="Show App Download on Home page" draft={draft} onChange={onChange}>
+          <AppDownloadEditor value={getPath(draft, 'home.download') ?? {}} onChange={(v) => onChange('home.download', v)} />
+        </WithVisibility>
+      )
     case 'lp.home.testimonials':
-      return <TestimonialsEditor value={getPath(draft, 'home.testimonials') ?? {}} onChange={(v) => onChange('home.testimonials', v)} />
+      return (
+        <WithVisibility pagePath="home.testimonials" label="Show Testimonials on Home page" draft={draft} onChange={onChange}>
+          <TestimonialsEditor value={getPath(draft, 'home.testimonials') ?? {}} onChange={(v) => onChange('home.testimonials', v)} />
+        </WithVisibility>
+      )
 
     // ── Launchpad: Ride Page ──────────────────────────────────────────────────
     case 'lp.ride.hero':
-      return <PageHeroEditor value={getPath(draft, 'ride.hero') ?? {}} onChange={(v) => onChange('ride.hero', v)} showImage />
+      return (
+        <WithVisibility pagePath="ride.hero" label="Show Hero on Ride page" draft={draft} onChange={onChange}>
+          <PageHeroEditor value={getPath(draft, 'ride.hero') ?? {}} onChange={(v) => onChange('ride.hero', v)} showImage />
+        </WithVisibility>
+      )
     case 'lp.ride.stats':
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Stats</h2>
-          <StatListEditor value={getPath(draft, 'ride.stats') ?? []} onChange={(v) => onChange('ride.stats', v)} />
-        </div>
+        <WithVisibility pagePath="ride.stats" label="Show Stats on Ride page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Stats</h2>
+            <StatListEditor value={getPath(draft, 'ride.stats') ?? []} onChange={(v) => onChange('ride.stats', v)} />
+          </div>
+        </WithVisibility>
       )
     case 'lp.ride.steps':
-      // ride.steps uses { title, subtitle, items: CardItem[] } (not "steps" key like home.howItWorks)
-      return <CardSectionEditor value={getPath(draft, 'ride.steps') ?? {}} onChange={(v) => onChange('ride.steps', v)} showSubtitle sectionLabel="Steps" />
+      return (
+        <WithVisibility pagePath="ride.steps" label="Show Steps on Ride page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'ride.steps') ?? {}} onChange={(v) => onChange('ride.steps', v)} showSubtitle sectionLabel="Steps" />
+        </WithVisibility>
+      )
     case 'lp.ride.pricing':
-      return <RidePricingEditor value={getPath(draft, 'ride.pricing') ?? {}} onChange={(v) => onChange('ride.pricing', v)} />
+      return (
+        <WithVisibility pagePath="ride.pricing" label="Show Pricing on Ride page" draft={draft} onChange={onChange}>
+          <RidePricingEditor value={getPath(draft, 'ride.pricing') ?? {}} onChange={(v) => onChange('ride.pricing', v)} />
+        </WithVisibility>
+      )
     case 'lp.ride.lifestyle':
-      return <ImageFeaturesEditor value={getPath(draft, 'ride.lifestyle') ?? {}} onChange={(v) => onChange('ride.lifestyle', v)} featuresLabel="Lifestyle Features" />
+      return (
+        <WithVisibility pagePath="ride.lifestyle" label="Show Lifestyle on Ride page" draft={draft} onChange={onChange}>
+          <ImageFeaturesEditor value={getPath(draft, 'ride.lifestyle') ?? {}} onChange={(v) => onChange('ride.lifestyle', v)} featuresLabel="Lifestyle Features" />
+        </WithVisibility>
+      )
     case 'lp.ride.categories':
-      return <RideCategoriesEditor value={getPath(draft, 'ride.categories') ?? {}} onChange={(v) => onChange('ride.categories', v)} />
+      return (
+        <WithVisibility pagePath="ride.categories" label="Show Categories on Ride page" draft={draft} onChange={onChange}>
+          <RideCategoriesEditor value={getPath(draft, 'ride.categories') ?? {}} onChange={(v) => onChange('ride.categories', v)} />
+        </WithVisibility>
+      )
 
     // ── Launchpad: Drive Page ─────────────────────────────────────────────────
     case 'lp.drive.hero':
-      return <PageHeroEditor value={getPath(draft, 'drive.hero') ?? {}} onChange={(v) => onChange('drive.hero', v)} showImage={false} />
+      return (
+        <WithVisibility pagePath="drive.hero" label="Show Hero on Drive page" draft={draft} onChange={onChange}>
+          <PageHeroEditor value={getPath(draft, 'drive.hero') ?? {}} onChange={(v) => onChange('drive.hero', v)} showImage={false} />
+        </WithVisibility>
+      )
     case 'lp.drive.stats':
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Stats</h2>
-          <StatListEditor value={getPath(draft, 'drive.stats') ?? []} onChange={(v) => onChange('drive.stats', v)} />
-        </div>
+        <WithVisibility pagePath="drive.stats" label="Show Stats on Drive page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Stats</h2>
+            <StatListEditor value={getPath(draft, 'drive.stats') ?? []} onChange={(v) => onChange('drive.stats', v)} />
+          </div>
+        </WithVisibility>
       )
     case 'lp.drive.featured':
-      return <ImageFeaturesEditor value={getPath(draft, 'drive.featured') ?? {}} onChange={(v) => onChange('drive.featured', v)} featuresLabel="Driver Features" />
+      return (
+        <WithVisibility pagePath="drive.featured" label="Show Featured on Drive page" draft={draft} onChange={onChange}>
+          <ImageFeaturesEditor value={getPath(draft, 'drive.featured') ?? {}} onChange={(v) => onChange('drive.featured', v)} featuresLabel="Driver Features" />
+        </WithVisibility>
+      )
     case 'lp.drive.benefits':
-      return <CardSectionEditor value={getPath(draft, 'drive.benefits') ?? {}} onChange={(v) => onChange('drive.benefits', v)} sectionLabel="Benefits" />
+      return (
+        <WithVisibility pagePath="drive.benefits" label="Show Benefits on Drive page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'drive.benefits') ?? {}} onChange={(v) => onChange('drive.benefits', v)} sectionLabel="Benefits" />
+        </WithVisibility>
+      )
     case 'lp.drive.requirements':
-      return <DriveRequirementsEditor value={getPath(draft, 'drive.requirements') ?? {}} onChange={(v) => onChange('drive.requirements', v)} />
+      return (
+        <WithVisibility pagePath="drive.requirements" label="Show Requirements on Drive page" draft={draft} onChange={onChange}>
+          <DriveRequirementsEditor value={getPath(draft, 'drive.requirements') ?? {}} onChange={(v) => onChange('drive.requirements', v)} />
+        </WithVisibility>
+      )
     case 'lp.drive.earnings':
-      return <DriveEarningsEditor value={getPath(draft, 'drive.earnings') ?? {}} onChange={(v) => onChange('drive.earnings', v)} />
+      return (
+        <WithVisibility pagePath="drive.earnings" label="Show Earnings on Drive page" draft={draft} onChange={onChange}>
+          <DriveEarningsEditor value={getPath(draft, 'drive.earnings') ?? {}} onChange={(v) => onChange('drive.earnings', v)} />
+        </WithVisibility>
+      )
 
     // ── Launchpad: About Page ─────────────────────────────────────────────────
     case 'lp.about.hero':
-      return <PageHeroEditor value={getPath(draft, 'about.hero') ?? {}} onChange={(v) => onChange('about.hero', v)} showImage={false} />
+      return (
+        <WithVisibility pagePath="about.hero" label="Show Hero on About page" draft={draft} onChange={onChange}>
+          <PageHeroEditor value={getPath(draft, 'about.hero') ?? {}} onChange={(v) => onChange('about.hero', v)} showImage={false} />
+        </WithVisibility>
+      )
     case 'lp.about.mission':
-      return <AboutMissionEditor value={getPath(draft, 'about.mission') ?? {}} onChange={(v) => onChange('about.mission', v)} />
+      return (
+        <WithVisibility pagePath="about.mission" label="Show Mission on About page" draft={draft} onChange={onChange}>
+          <AboutMissionEditor value={getPath(draft, 'about.mission') ?? {}} onChange={(v) => onChange('about.mission', v)} />
+        </WithVisibility>
+      )
     case 'lp.about.stats':
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Stats</h2>
-          <StatListEditor value={getPath(draft, 'about.stats') ?? []} onChange={(v) => onChange('about.stats', v)} />
-        </div>
+        <WithVisibility pagePath="about.stats" label="Show Stats on About page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Stats</h2>
+            <StatListEditor value={getPath(draft, 'about.stats') ?? []} onChange={(v) => onChange('about.stats', v)} />
+          </div>
+        </WithVisibility>
       )
     case 'lp.about.team':
-      return <AboutTeamEditor value={getPath(draft, 'about.team') ?? {}} onChange={(v) => onChange('about.team', v)} />
+      return (
+        <WithVisibility pagePath="about.team" label="Show Team on About page" draft={draft} onChange={onChange}>
+          <AboutTeamEditor value={getPath(draft, 'about.team') ?? {}} onChange={(v) => onChange('about.team', v)} />
+        </WithVisibility>
+      )
     case 'lp.about.values':
-      return <CardSectionEditor value={getPath(draft, 'about.values') ?? {}} onChange={(v) => onChange('about.values', v)} sectionLabel="Values" />
+      return (
+        <WithVisibility pagePath="about.values" label="Show Values on About page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'about.values') ?? {}} onChange={(v) => onChange('about.values', v)} sectionLabel="Values" />
+        </WithVisibility>
+      )
     case 'lp.about.timeline':
-      return <AboutTimelineEditor value={getPath(draft, 'about.timeline') ?? {}} onChange={(v) => onChange('about.timeline', v)} />
+      return (
+        <WithVisibility pagePath="about.timeline" label="Show Timeline on About page" draft={draft} onChange={onChange}>
+          <AboutTimelineEditor value={getPath(draft, 'about.timeline') ?? {}} onChange={(v) => onChange('about.timeline', v)} />
+        </WithVisibility>
+      )
     case 'lp.about.cityBanner':
-      return <SimpleBannerEditor value={getPath(draft, 'about.cityBanner') ?? {}} onChange={(v) => onChange('about.cityBanner', v)} imageLabel="City Banner Image" />
+      return (
+        <WithVisibility pagePath="about.cityBanner" label="Show City Banner on About page" draft={draft} onChange={onChange}>
+          <SimpleBannerEditor value={getPath(draft, 'about.cityBanner') ?? {}} onChange={(v) => onChange('about.cityBanner', v)} imageLabel="City Banner Image" />
+        </WithVisibility>
+      )
     case 'lp.about.contact':
-      return <AboutContactEditor value={getPath(draft, 'about.contact') ?? {}} onChange={(v) => onChange('about.contact', v)} />
+      return (
+        <WithVisibility pagePath="about.contact" label="Show Contact on About page" draft={draft} onChange={onChange}>
+          <AboutContactEditor value={getPath(draft, 'about.contact') ?? {}} onChange={(v) => onChange('about.contact', v)} />
+        </WithVisibility>
+      )
 
     // ── Launchpad: Safety Page ────────────────────────────────────────────────
     case 'lp.safety.hero':
-      return <PageHeroEditor value={getPath(draft, 'safety.hero') ?? {}} onChange={(v) => onChange('safety.hero', v)} showImage={false} />
+      return (
+        <WithVisibility pagePath="safety.hero" label="Show Hero on Safety page" draft={draft} onChange={onChange}>
+          <PageHeroEditor value={getPath(draft, 'safety.hero') ?? {}} onChange={(v) => onChange('safety.hero', v)} showImage={false} />
+        </WithVisibility>
+      )
     case 'lp.safety.stats':
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Stats</h2>
-          <StatListEditor value={getPath(draft, 'safety.stats') ?? []} onChange={(v) => onChange('safety.stats', v)} />
-        </div>
+        <WithVisibility pagePath="safety.stats" label="Show Stats on Safety page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Stats</h2>
+            <StatListEditor value={getPath(draft, 'safety.stats') ?? []} onChange={(v) => onChange('safety.stats', v)} />
+          </div>
+        </WithVisibility>
       )
     case 'lp.safety.riderFeatures':
-      return <CardSectionEditor value={getPath(draft, 'safety.riderFeatures') ?? {}} onChange={(v) => onChange('safety.riderFeatures', v)} sectionLabel="Rider Safety Features" />
+      return (
+        <WithVisibility pagePath="safety.riderFeatures" label="Show Rider Features on Safety page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'safety.riderFeatures') ?? {}} onChange={(v) => onChange('safety.riderFeatures', v)} sectionLabel="Rider Safety Features" />
+        </WithVisibility>
+      )
     case 'lp.safety.driverFeatures':
-      return <CardSectionEditor value={getPath(draft, 'safety.driverFeatures') ?? {}} onChange={(v) => onChange('safety.driverFeatures', v)} sectionLabel="Driver Safety Features" />
+      return (
+        <WithVisibility pagePath="safety.driverFeatures" label="Show Driver Features on Safety page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'safety.driverFeatures') ?? {}} onChange={(v) => onChange('safety.driverFeatures', v)} sectionLabel="Driver Safety Features" />
+        </WithVisibility>
+      )
     case 'lp.safety.trust':
-      return <SafetyTrustEditor value={getPath(draft, 'safety.trust') ?? {}} onChange={(v) => onChange('safety.trust', v)} />
+      return (
+        <WithVisibility pagePath="safety.trust" label="Show Trust on Safety page" draft={draft} onChange={onChange}>
+          <SafetyTrustEditor value={getPath(draft, 'safety.trust') ?? {}} onChange={(v) => onChange('safety.trust', v)} />
+        </WithVisibility>
+      )
     case 'lp.safety.pillars':
-      return <CardSectionEditor value={getPath(draft, 'safety.pillars') ?? {}} onChange={(v) => onChange('safety.pillars', v)} showSubtitle sectionLabel="Safety Pillars" />
+      return (
+        <WithVisibility pagePath="safety.pillars" label="Show Pillars on Safety page" draft={draft} onChange={onChange}>
+          <CardSectionEditor value={getPath(draft, 'safety.pillars') ?? {}} onChange={(v) => onChange('safety.pillars', v)} showSubtitle sectionLabel="Safety Pillars" />
+        </WithVisibility>
+      )
     case 'lp.safety.emergency':
-      return <SimpleBannerEditor value={getPath(draft, 'safety.emergency') ?? {}} onChange={(v) => onChange('safety.emergency', v)} imageLabel="Emergency Image" />
+      return (
+        <WithVisibility pagePath="safety.emergency" label="Show Emergency on Safety page" draft={draft} onChange={onChange}>
+          <SimpleBannerEditor value={getPath(draft, 'safety.emergency') ?? {}} onChange={(v) => onChange('safety.emergency', v)} imageLabel="Emergency Image" />
+        </WithVisibility>
+      )
 
     // ── Launchpad: Help Page ──────────────────────────────────────────────────
     case 'lp.help.hero':
-      return <PageHeroEditor value={getPath(draft, 'help.hero') ?? {}} onChange={(v) => onChange('help.hero', v)} showImage={false} />
-    case 'lp.help.channels':
-      // help.channels is a plain CardItem[] (no title wrapper)
       return (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Support Channels</h2>
-          <p className="text-sm text-gray-500">Cards shown at the top of the Help page.</p>
-          <CardSectionEditor
-            value={{ items: getPath(draft, 'help.channels') ?? [] }}
-            onChange={(v) => onChange('help.channels', v.items ?? [])}
-            sectionLabel="Channels"
-          />
-        </div>
+        <WithVisibility pagePath="help.hero" label="Show Hero on Help page" draft={draft} onChange={onChange}>
+          <PageHeroEditor value={getPath(draft, 'help.hero') ?? {}} onChange={(v) => onChange('help.hero', v)} showImage={false} />
+        </WithVisibility>
+      )
+    case 'lp.help.channels':
+      return (
+        <WithVisibility pagePath="help.channels" label="Show Support Channels on Help page" draft={draft} onChange={onChange}>
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Support Channels</h2>
+            <p className="text-sm text-gray-500">Cards shown at the top of the Help page.</p>
+            <CardSectionEditor
+              value={{ items: getPath(draft, 'help.channels') ?? [] }}
+              onChange={(v) => onChange('help.channels', v.items ?? [])}
+              sectionLabel="Channels"
+            />
+          </div>
+        </WithVisibility>
       )
     case 'lp.help.riderFaqs':
-      return <FaqEditor value={getPath(draft, 'help.riderFaqs') ?? []} onChange={(v) => onChange('help.riderFaqs', v)} sectionTitle="Rider FAQs" />
+      return (
+        <WithVisibility pagePath="help.riderFaqs" label="Show Rider FAQs on Help page" draft={draft} onChange={onChange}>
+          <FaqEditor value={getPath(draft, 'help.riderFaqs') ?? []} onChange={(v) => onChange('help.riderFaqs', v)} sectionTitle="Rider FAQs" />
+        </WithVisibility>
+      )
     case 'lp.help.driverFaqs':
-      return <FaqEditor value={getPath(draft, 'help.driverFaqs') ?? []} onChange={(v) => onChange('help.driverFaqs', v)} sectionTitle="Driver FAQs" />
+      return (
+        <WithVisibility pagePath="help.driverFaqs" label="Show Driver FAQs on Help page" draft={draft} onChange={onChange}>
+          <FaqEditor value={getPath(draft, 'help.driverFaqs') ?? []} onChange={(v) => onChange('help.driverFaqs', v)} sectionTitle="Driver FAQs" />
+        </WithVisibility>
+      )
     case 'lp.help.support':
-      return <SimpleBannerEditor value={getPath(draft, 'help.support') ?? {}} onChange={(v) => onChange('help.support', v)} imageLabel="Support Image" />
+      return (
+        <WithVisibility pagePath="help.support" label="Show Support Banner on Help page" draft={draft} onChange={onChange}>
+          <SimpleBannerEditor value={getPath(draft, 'help.support') ?? {}} onChange={(v) => onChange('help.support', v)} imageLabel="Support Image" />
+        </WithVisibility>
+      )
 
     default:
       return (

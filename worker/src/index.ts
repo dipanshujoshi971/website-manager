@@ -4,9 +4,16 @@ import { createDb } from './db/client'
 import { sitesRouter } from './routes/sites'
 import { contentRouter } from './routes/content'
 import { submissionsRouter, contactRouter } from './routes/submissions'
-import { uploadRouter } from './routes/upload'
+import { uploadRouter, filesRouter } from './routes/upload'
+import { deployRouter } from './routes/deploy'
 
-type Bindings = { DATABASE_URL: string }
+type Bindings = {
+  DATABASE_URL: string
+  R2_BUCKET?: R2Bucket
+  R2_PUBLIC_URL?: string
+  CLOUDFLARE_ACCOUNT_ID?: string
+  CLOUDFLARE_API_TOKEN?: string
+}
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -30,6 +37,8 @@ app.route('/api/sites/:siteId/content', contentRouter)
 app.route('/api/sites/:siteId/submissions', submissionsRouter)
 app.route('/api/contact', contactRouter)
 app.route('/api/upload', uploadRouter)
+app.route('/api/files', filesRouter)
+app.route('/api/sites/:siteId/deploy', deployRouter)
 
 app.get('/', (c) => c.json({ ok: true, service: 'gonex-builder-api' }))
 

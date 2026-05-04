@@ -18,12 +18,16 @@ export const Route = createFileRoute("/safety")({
 
 function SafetyPage() {
   const page = usePage("safety");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
+      {visible('hero') && (
       <PageHero eyebrow={page.hero.eyebrow} title={page.hero.title} subtitle={page.hero.subtitle} />
+      )}
 
       {/* Stats */}
+      {visible('stats') && (
       <section className="border-b border-border bg-card py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">
@@ -38,36 +42,44 @@ function SafetyPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
-      {/* Features */}
+      {/* Features (rider + driver + trust — each toggleable individually) */}
+      {(visible('riderFeatures') || visible('driverFeatures') || visible('trust')) && (
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-2">
-            <SafetyCol title={page.riderFeatures.title} items={page.riderFeatures.items} />
-            <SafetyCol title={page.driverFeatures.title} items={page.driverFeatures.items} />
-          </div>
+          {(visible('riderFeatures') || visible('driverFeatures')) && (
+            <div className="grid gap-10 lg:grid-cols-2">
+              {visible('riderFeatures') && <SafetyCol title={page.riderFeatures.title} items={page.riderFeatures.items} />}
+              {visible('driverFeatures') && <SafetyCol title={page.driverFeatures.title} items={page.driverFeatures.items} />}
+            </div>
+          )}
 
-          <div className="mt-16 grid items-center gap-10 lg:grid-cols-2">
-            <FadeUp className="overflow-hidden rounded-3xl shadow-soft">
-              <img src={page.trust.image || safetyImg} alt="Safe rides" className="w-full" loading="lazy" />
-            </FadeUp>
-            <FadeUp delay={0.15}>
-              <h2 className="text-3xl font-bold text-foreground">{page.trust.title}</h2>
-              <p className="mt-4 text-muted-foreground">{page.trust.subtitle}</p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                {page.trust.badges.map((b) => (
-                  <span key={b} className="rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary">{b}</span>
-                ))}
-              </div>
-              <Link to="/help" className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft">
-                Report an issue
-              </Link>
-            </FadeUp>
-          </div>
+          {visible('trust') && (
+            <div className="mt-16 grid items-center gap-10 lg:grid-cols-2">
+              <FadeUp className="overflow-hidden rounded-3xl shadow-soft">
+                <img src={page.trust.image || safetyImg} alt="Safe rides" className="w-full" loading="lazy" />
+              </FadeUp>
+              <FadeUp delay={0.15}>
+                <h2 className="text-3xl font-bold text-foreground">{page.trust.title}</h2>
+                <p className="mt-4 text-muted-foreground">{page.trust.subtitle}</p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  {page.trust.badges.map((b) => (
+                    <span key={b} className="rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary">{b}</span>
+                  ))}
+                </div>
+                <Link to="/help" className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft">
+                  Report an issue
+                </Link>
+              </FadeUp>
+            </div>
+          )}
         </div>
       </section>
+      )}
 
       {/* Pillars */}
+      {visible('pillars') && (
       <section className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp className="mx-auto max-w-2xl text-center">
@@ -88,8 +100,10 @@ function SafetyPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Emergency */}
+      {visible('emergency') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp>
@@ -104,6 +118,7 @@ function SafetyPage() {
           </FadeUp>
         </div>
       </section>
+      )}
     </SiteLayout>
   );
 }

@@ -8,6 +8,8 @@
     "dev:all": "npm run setup && concurrently \"npm run dev -w worker\" \"npm run dev -w app\" \"npm run dev -w site\"",
     "build": "npm run build -w worker && npm run build -w app",
     "build:site": "npm run build -w site",
+    "upload-template": "node scripts/upload-template.mjs",
+    "deploy:site": "node scripts/deploy-site.mjs",
     "db:generate": "node scripts/db.mjs generate",
     "db:migrate": "node scripts/db.mjs migrate",
     "db:seed": "node scripts/seed.mjs"

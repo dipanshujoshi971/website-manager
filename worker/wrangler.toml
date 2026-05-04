@@ -5,3 +5,20 @@ compatibility_flags = ["nodejs_compat"]
 
 # Local dev — copy .env.example to .dev.vars and fill in DATABASE_URL
 # Production — set DATABASE_URL in CF dashboard → Workers → Settings → Variables
+
+# R2 bucket for image uploads. Local `wrangler dev` simulates this with miniflare;
+# create the real bucket once before deploying:
+#   cd worker && npx wrangler r2 bucket create gonex-builder-uploads
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "gonex-builder-uploads"
+
+[vars]
+# Your deployed worker URL — used to build absolute image URLs when uploading from local dev.
+# Replace with your actual workers.dev URL after first deploy.
+WORKER_URL = "https://gonex-builder-api.keshavgoyal5.workers.dev"
+
+# Optional: if you wire the bucket to a public r2.dev or custom domain, set its base
+# here so image URLs point straight to the bucket. Otherwise images are served via
+# /api/files/:key on this worker (works fine, just adds one hop).
+# R2_PUBLIC_URL = "https://pub-xxxxxxxx.r2.dev"

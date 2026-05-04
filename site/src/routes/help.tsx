@@ -20,12 +20,16 @@ export const Route = createFileRoute("/help")({
 
 function HelpPage() {
   const page = usePage("help");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
+      {visible('hero') && (
       <PageHero eyebrow={page.hero.eyebrow} title={page.hero.title} subtitle={page.hero.subtitle} />
+      )}
 
       {/* Contact channels */}
+      {visible('channels') && (
       <section className="py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid gap-6 md:grid-cols-3">
@@ -42,18 +46,22 @@ function HelpPage() {
           </Stagger>
         </div>
       </section>
+      )}
 
-      {/* FAQs */}
+      {/* FAQs (rider + driver — each toggleable individually) */}
+      {(visible('riderFaqs') || visible('driverFaqs')) && (
       <section className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-2">
-            <FaqColumn title="Riders FAQ" items={page.riderFaqs} />
-            <FaqColumn title="Drivers FAQ" items={page.driverFaqs} />
+            {visible('riderFaqs') && <FaqColumn title="Riders FAQ" items={page.riderFaqs} />}
+            {visible('driverFaqs') && <FaqColumn title="Drivers FAQ" items={page.driverFaqs} />}
           </div>
         </div>
       </section>
+      )}
 
       {/* Support */}
+      {visible('support') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp className="overflow-hidden rounded-3xl shadow-soft">
@@ -68,6 +76,7 @@ function HelpPage() {
           </FadeUp>
         </div>
       </section>
+      )}
     </SiteLayout>
   );
 }

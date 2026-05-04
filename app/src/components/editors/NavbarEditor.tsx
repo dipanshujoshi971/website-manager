@@ -5,6 +5,7 @@ interface NavLink { to: string; label: string; show?: boolean }
 interface NavbarContent {
   links?: NavLink[]
   ctaButton?: { show: boolean; text: string; link: string }
+  brandDisplay?: 'both' | 'logo' | 'name'
 }
 
 interface Props {
@@ -26,8 +27,40 @@ export function NavbarEditor({ value, onChange }: Props) {
     onChange({ ...value, links: links.filter((_, idx) => idx !== i) })
   }
 
+  const brandDisplay = value.brandDisplay ?? 'both'
+  const brandOptions: { value: 'both' | 'logo' | 'name'; label: string; hint: string }[] = [
+    { value: 'both', label: 'Logo + Name', hint: 'Show the icon and the brand name side by side' },
+    { value: 'logo', label: 'Logo only', hint: 'Show only the icon' },
+    { value: 'name', label: 'Name only', hint: 'Show only the brand name as text' },
+  ]
+
   return (
     <div className="space-y-6">
+      <EditorSection title="Brand Display">
+        <div className="grid grid-cols-3 gap-2">
+          {brandOptions.map((opt) => {
+            const active = brandDisplay === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onChange({ ...value, brandDisplay: opt.value })}
+                className={`rounded-xl border p-3 text-left transition-colors ${
+                  active
+                    ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className={`text-sm font-medium ${active ? 'text-indigo-700' : 'text-gray-900'}`}>{opt.label}</div>
+                <div className="mt-1 text-xs text-gray-500">{opt.hint}</div>
+              </button>
+            )
+          })}
+        </div>
+      </EditorSection>
+
+      <Divider />
+
       <EditorSection title="Navigation Links">
         <div className="space-y-3">
           {links.map((link, i) => (

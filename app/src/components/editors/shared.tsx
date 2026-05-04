@@ -121,6 +121,26 @@ export function EditorSection({ title, children }: { title: string; children: Re
   )
 }
 
+// ── "Show on page" toggle for entire sections ────────────────────────────────
+// Drives `<page>.sectionsVisible.<key>` on the draft. /site checks the same key
+// to decide whether to render the section.
+
+export function SectionVisibilityToggle({
+  visible,
+  onToggle,
+  label = 'Show this section on the page',
+}: {
+  visible: boolean
+  onToggle: (v: boolean) => void
+  label?: string
+}) {
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 px-4 py-3 mb-2">
+      <Toggle label={label} checked={visible} onChange={onToggle} />
+    </div>
+  )
+}
+
 export function Divider() {
   return <hr className="border-gray-100" />
 }

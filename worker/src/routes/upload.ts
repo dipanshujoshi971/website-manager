@@ -2,31 +2,54 @@ import { Hono } from 'hono'
 
 type Bindings = {
   DATABASE_URL: string
-  R2_BUCKET?: R2Bucket           // bind in wrangler.toml when ready
-  R2_PUBLIC_URL?: string         // public base URL of the R2 bucket
+  R2_BUCKET?: R2Bucket
+  R2_PUBLIC_URL?: string
+  WORKER_URL?: string
 }
 
 export const uploadRouter = new Hono<{ Bindings: Bindings }>()
 
+// POST /api/upload — store the file in R2, return its public URL.
 uploadRouter.post('/', async (c) => {
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
-
   if (!file) return c.json({ error: 'No file provided' }, 400)
 
-  // ── R2 path (when bucket is bound) ──────────────────────────────────────
-  if (c.env.R2_BUCKET && c.env.R2_PUBLIC_URL) {
-    const ext = file.name.split('.').pop() ?? 'bin'
+  if (c.env.R2_BUCKET) {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
     const key = `images/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
     await c.env.R2_BUCKET.put(key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },
     })
-    return c.json({ url: `${c.env.R2_PUBLIC_URL}/${key}` })
+    // Prefer a configured public bucket URL; otherwise serve through this worker.
+    // Use WORKER_URL if set so images uploaded in local dev get production-reachable URLs.
+    const origin = c.env.WORKER_URL?.replace(/\/$/, '') ?? new URL(c.req.url).origin
+    const url = c.env.R2_PUBLIC_URL
+      ? `${c.env.R2_PUBLIC_URL}/${key}`
+      : `${origin}/api/files/${key}`
+    return c.json({ url, key })
   }
 
-  // ── Fallback: base64 data URL (dev / no R2 configured) ──────────────────
+  // No R2 binding (shouldn't happen with wrangler.toml configured) — base64 fallback
+  // so the editor still works for someone running an older worker build.
   const buffer = await file.arrayBuffer()
   const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
-  const dataUrl = `data:${file.type};base64,${base64}`
-  return c.json({ url: dataUrl })
+  return c.json({ url: `data:${file.type};base64,${base64}` })
+})
+
+// GET /api/files/:key+ — stream a stored object back from R2.
+// `key+` captures slashes so /api/files/images/abc.png works.
+export const filesRouter = new Hono<{ Bindings: Bindings }>()
+
+filesRouter.get('/:key{.+}', async (c) => {
+  if (!c.env.R2_BUCKET) return c.json({ error: 'R2 not configured' }, 500)
+  const key = c.req.param('key')
+  const obj = await c.env.R2_BUCKET.get(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+  const headers = new Headers()
+  obj.writeHttpMetadata(headers)
+  headers.set('etag', obj.httpEtag)
+  // Long cache — keys are content-addressed via timestamp+random, so they never change.
+  headers.set('cache-control', 'public, max-age=31536000, immutable')
+  return new Response(obj.body, { headers })
 })

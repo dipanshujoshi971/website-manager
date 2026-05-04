@@ -20,16 +20,20 @@ export const Route = createFileRoute("/drive")({
 
 function DrivePage() {
   const page = usePage("drive");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
+      {visible('hero') && (
       <PageHero eyebrow={page.hero.eyebrow} title={page.hero.title} subtitle={page.hero.subtitle}>
         <a href="#start" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-soft">
           Start Earning <ArrowRight className="h-4 w-4" />
         </a>
       </PageHero>
+      )}
 
       {/* Stats */}
+      {visible('stats') && (
       <section className="border-b border-border bg-card py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">
@@ -44,8 +48,10 @@ function DrivePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Featured */}
+      {visible('featured') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp className="overflow-hidden rounded-3xl shadow-soft">
@@ -69,8 +75,10 @@ function DrivePage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Benefits */}
+      {visible('benefits') && (
       <section className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -92,8 +100,10 @@ function DrivePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Requirements */}
+      {visible('requirements') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp>
@@ -118,8 +128,10 @@ function DrivePage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Earnings */}
+      {visible('earnings') && (
       <section className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -137,6 +149,7 @@ function DrivePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       <DownloadCta />
     </SiteLayout>

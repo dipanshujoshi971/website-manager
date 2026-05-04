@@ -24,10 +24,12 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const page = usePage("home");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
       {/* Hero */}
+      {visible('hero') && (
       <section className="relative -mt-16 overflow-hidden">
         <div className="absolute inset-0">
           <img src={page.hero.backgroundImage || heroBg} alt="" aria-hidden="true" className="h-full w-full object-cover" />
@@ -63,12 +65,16 @@ function HomePage() {
               variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
               className="mt-8 flex flex-wrap gap-3"
             >
-              <Link to={page.hero.ctaPrimary.link} className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-soft transition-transform hover:scale-[1.02]">
-                {page.hero.ctaPrimary.text} <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link to={page.hero.ctaSecondary.link} className="inline-flex items-center gap-2 rounded-full border-2 border-white/80 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-primary">
-                {page.hero.ctaSecondary.text}
-              </Link>
+              {(page.hero.ctaPrimary as any).show !== false && (
+                <Link to={page.hero.ctaPrimary.link} className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-soft transition-transform hover:scale-[1.02]">
+                  {page.hero.ctaPrimary.text} <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+              {(page.hero.ctaSecondary as any).show !== false && (
+                <Link to={page.hero.ctaSecondary.link} className="inline-flex items-center gap-2 rounded-full border-2 border-white/80 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-primary">
+                  {page.hero.ctaSecondary.text}
+                </Link>
+              )}
             </motion.div>
             <motion.div
               variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.6 } } }}
@@ -99,8 +105,10 @@ function HomePage() {
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* Stats */}
+      {visible('stats') && (
       <section className="border-y border-border bg-card py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">
@@ -115,8 +123,10 @@ function HomePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* How it works */}
+      {visible('howItWorks') && (
       <section className="bg-muted py-20 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp className="mx-auto max-w-2xl text-center">
@@ -140,8 +150,10 @@ function HomePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Why Us */}
+      {visible('whyUs') && (
       <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp className="mx-auto max-w-2xl text-center">
@@ -164,8 +176,10 @@ function HomePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Cities */}
+      {visible('cities') && (
       <section className="relative overflow-hidden">
         <img src={page.cities.backgroundImage || cityImg} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.15_0.04_255/0.92)] to-[oklch(0.2_0.06_255/0.7)]" />
@@ -183,8 +197,10 @@ function HomePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* App download */}
+      {visible('download') && (
       <section id="download" className="bg-muted py-20 sm:py-24">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp>
@@ -199,8 +215,10 @@ function HomePage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Testimonials */}
+      {visible('testimonials') && (
       <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp className="mx-auto max-w-2xl text-center">
@@ -223,6 +241,7 @@ function HomePage() {
           </Stagger>
         </div>
       </section>
+      )}
     </SiteLayout>
   );
 }

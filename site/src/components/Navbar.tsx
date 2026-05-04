@@ -10,7 +10,16 @@ export function Navbar() {
   const { pathname } = useLocation();
   const global = usePage("global");
 
-  const navLinks = global.navbar.links;
+  // Hide links the user has toggled off in the builder
+  const navLinks = global.navbar.links.filter((l: any) => l.show !== false);
+  const brandDisplay = ((global.navbar as any).brandDisplay ?? 'both') as 'both' | 'logo' | 'name';
+  const showLogo = brandDisplay !== 'name';
+  const showName = brandDisplay !== 'logo';
+  // CTA: prefer the editor's nested `ctaButton`; fall back to the legacy flat keys.
+  const ctaButton = (global.navbar as any).ctaButton as { show?: boolean; text?: string; link?: string } | undefined;
+  const ctaText = ctaButton?.text ?? global.navbar.ctaText;
+  const ctaLink = ctaButton?.link ?? global.navbar.ctaLink;
+  const showCta = ctaButton?.show !== false;
   const darkHeroRoutes = ["/"];
   const hasDarkHero = darkHeroRoutes.includes(pathname);
   const onDark = hasDarkHero && !scrolled && !open;
@@ -33,10 +42,14 @@ export function Navbar() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <img src={global.logo || logo} alt={global.siteName} className="h-9 w-9 object-contain" />
-          <span className={`text-lg font-bold tracking-tight ${onDark ? "text-white" : "text-foreground"}`}>
-            {global.siteName}
-          </span>
+          {showLogo && (
+            <img src={global.logo || logo} alt={global.siteName} className="h-9 w-9 object-contain" />
+          )}
+          {showName && (
+            <span className={`text-lg font-bold tracking-tight ${onDark ? "text-white" : "text-foreground"}`}>
+              {global.siteName}
+            </span>
+          )}
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
@@ -60,16 +73,18 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden md:block">
-          <a
-            href={global.navbar.ctaLink}
-            className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold shadow-soft transition-transform hover:scale-[1.02] ${
-              onDark ? "bg-white text-primary" : "bg-primary text-primary-foreground"
-            }`}
-          >
-            {global.navbar.ctaText}
-          </a>
-        </div>
+        {showCta && (
+          <div className="hidden md:block">
+            <a
+              href={ctaLink}
+              className={`inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold shadow-soft transition-transform hover:scale-[1.02] ${
+                onDark ? "bg-white text-primary" : "bg-primary text-primary-foreground"
+              }`}
+            >
+              {ctaText}
+            </a>
+          </div>
+        )}
 
         <button
           aria-label="Toggle menu"
@@ -93,13 +108,15 @@ export function Navbar() {
                 {l.label}
               </Link>
             ))}
-            <a
-              href={global.navbar.ctaLink}
-              onClick={() => setOpen(false)}
-              className="mt-2 block rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
-            >
-              {global.navbar.ctaText}
-            </a>
+            {showCta && (
+              <a
+                href={ctaLink}
+                onClick={() => setOpen(false)}
+                className="mt-2 block rounded-full bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground"
+              >
+                {ctaText}
+              </a>
+            )}
           </div>
         </div>
       )}

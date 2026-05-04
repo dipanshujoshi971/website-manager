@@ -19,9 +19,11 @@ export const Route = createFileRoute("/ride")({
 
 function RidePage() {
   const page = usePage("ride");
+  const visible = (key: string) => (page as any).sectionsVisible?.[key] !== false;
 
   return (
     <SiteLayout>
+      {visible('hero') && (
       <PageHero eyebrow={page.hero.eyebrow} title={page.hero.title} subtitle={page.hero.subtitle}>
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div className="flex flex-wrap gap-3">
@@ -35,8 +37,10 @@ function RidePage() {
           <img src={page.hero.image || rideImg} alt="Booking a ride" className="mx-auto w-full max-w-md rounded-2xl" />
         </div>
       </PageHero>
+      )}
 
       {/* Stats */}
+      {visible('stats') && (
       <section className="border-b border-border bg-card py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Stagger className="grid grid-cols-2 gap-8 text-center md:grid-cols-4">
@@ -51,8 +55,10 @@ function RidePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Steps */}
+      {visible('steps') && (
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -76,8 +82,10 @@ function RidePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       {/* Fare estimate */}
+      {visible('pricing') && (
       <section className="bg-muted py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp>
@@ -110,8 +118,10 @@ function RidePage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Lifestyle */}
+      {visible('lifestyle') && (
       <section className="py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
           <FadeUp className="overflow-hidden rounded-3xl">
@@ -135,8 +145,10 @@ function RidePage() {
           </FadeUp>
         </div>
       </section>
+      )}
 
       {/* Categories */}
+      {visible('categories') && (
       <section id="categories" className="bg-muted py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <FadeUp>
@@ -157,6 +169,7 @@ function RidePage() {
           </Stagger>
         </div>
       </section>
+      )}
 
       <DownloadCta />
     </SiteLayout>

@@ -1,7 +1,13 @@
 const BASE = '/api'
+// Deploy calls must hit the real deployed worker (needs real R2, not local miniflare).
+// Set VITE_WORKER_URL to your deployed worker URL so this works in local dev.
+// In production the same BASE is used for everything.
+const WORKER_BASE = (import.meta.env.VITE_WORKER_URL as string)
+  ? `${(import.meta.env.VITE_WORKER_URL as string).replace(/\/$/, '')}/api`
+  : BASE
 
-async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+async function req<T>(method: string, path: string, body?: unknown, base = BASE): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
@@ -20,6 +26,40 @@ export const api = {
   getSite: (siteId: string) => req<Site>('GET', `/sites/${siteId}`),
   updateSite: (siteId: string, data: Partial<Site>) => req<Site>('PUT', `/sites/${siteId}`, data),
   deleteSite: (siteId: string) => req<Site>('DELETE', `/sites/${siteId}`),
+  deploySite: (siteId: string) =>
+    req<{ ok: boolean; url: string; project: string; deploymentId?: string; site: Site }>(
+      'POST',
+      `/sites/${siteId}/deploy`,
+      undefined,
+      WORKER_BASE,
+    ),
+
+  // Runs deploy via the Vite dev server plugin (local dev only).
+  // Resolves with the live URL on success, rejects on failure.
+  deployLocal: async (siteId: string): Promise<string> => {
+    const res = await fetch(`/deploy-local/${siteId}`, { method: 'POST' })
+    if (!res.body) throw new Error('No response body')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let allOutput = ''
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      allOutput += chunk
+      buffer += chunk
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+    }
+    if (buffer) allOutput += buffer
+    if (allOutput.includes('__DEPLOY_FAIL__')) {
+      const msg = allOutput.split('__DEPLOY_FAIL__:').pop()?.trim() || 'Deploy failed'
+      throw new Error(msg)
+    }
+    const urlMatch = allOutput.match(/https:\/\/[^\s]+\.pages\.dev/)
+    return urlMatch?.[0] ?? ''
+  },
 
   // Content
   getContent: (siteId: string) => req<SiteContent>('GET', `/sites/${siteId}/content`),

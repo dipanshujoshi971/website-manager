@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { api, type Site, TEMPLATE_LABELS } from '@/lib/api'
 import { toast } from 'sonner'
-import { Loader2, Trash2 } from 'lucide-react'
+import { CheckCircle2, ExternalLink, Loader2, Trash2 } from 'lucide-react'
 
 export const Route = createFileRoute('/projects/$siteId/settings')({
   component: Settings,
@@ -21,7 +21,12 @@ function Settings() {
 
   useEffect(() => {
     api.getSite(siteId)
-      .then((s) => { setSite(s); setDomain(s.customDomain ?? ''); setPreviewUrl(s.previewUrl ?? ''); setCfProject(s.cfPagesProject ?? '') })
+      .then((s) => {
+        setSite(s)
+        setDomain(s.customDomain ?? '')
+        setPreviewUrl(s.previewUrl ?? '')
+        setCfProject(s.cfPagesProject ?? '')
+      })
       .catch((e) => toast.error(e.message))
       .finally(() => setLoading(false))
   }, [siteId])
@@ -30,7 +35,11 @@ function Settings() {
     e.preventDefault()
     setSaving(true)
     try {
-      const updated = await api.updateSite(siteId, { customDomain: domain || null, previewUrl: previewUrl || null, cfPagesProject: cfProject || null })
+      const updated = await api.updateSite(siteId, {
+        customDomain: domain || null,
+        previewUrl: previewUrl || null,
+        cfPagesProject: cfProject || null,
+      })
       setSite(updated)
       toast.success('Settings saved')
     } catch (e: any) {
@@ -53,33 +62,57 @@ function Settings() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin text-indigo-600" /></div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+    </div>
+  )
   if (!site) return <div className="p-8 text-red-600 text-sm">Project not found.</div>
 
+  const liveUrl = site.cfPagesProject ? `https://${site.cfPagesProject}.pages.dev` : null
+
   return (
-    <div className="p-8 max-w-xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Settings</h1>
-      <p className="text-sm text-gray-500 mb-8">{site.name} · {TEMPLATE_LABELS[site.templateType]}</p>
+    <div className="p-8 max-w-xl space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Settings</h1>
+        <p className="text-sm text-gray-500">{site.name} · {TEMPLATE_LABELS[site.templateType]}</p>
+      </div>
 
       {/* Read-only info */}
-      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 mb-8 space-y-2 text-sm">
+      <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-2 text-sm">
         <Row label="Site ID" value={<code className="font-mono text-xs bg-white border border-gray-200 rounded px-2 py-0.5">{site.siteId}</code>} />
         <Row label="Template" value={TEMPLATE_LABELS[site.templateType]} />
         <Row label="Created" value={new Date(site.createdAt).toLocaleDateString()} />
       </div>
 
+      {/* Live URL (if deployed) */}
+      {liveUrl && (
+        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-green-800 mb-0.5">Live on Cloudflare Pages</p>
+            <a
+              href={liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-mono text-green-700 hover:underline truncate block"
+            >
+              {liveUrl}
+            </a>
+          </div>
+          <a
+            href={liveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 rounded hover:bg-green-100 text-green-600 flex-shrink-0"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+      )}
+
       {/* Editable settings */}
       <form onSubmit={handleSave} className="space-y-5">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Preview URL</label>
-          <input
-            value={previewUrl}
-            onChange={(e) => setPreviewUrl(e.target.value)}
-            placeholder="e.g. http://localhost:5173 or https://gonex.pages.dev"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
-          />
-          <p className="mt-1 text-xs text-gray-400">Used by the Preview button in the editor. Set to localhost during development.</p>
-        </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1.5">Custom Domain</label>
           <input
@@ -88,16 +121,27 @@ function Settings() {
             placeholder="e.g. gonex.in"
             className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
           />
-          <p className="mt-1 text-xs text-gray-400">Connect via Cloudflare Pages dashboard after adding here.</p>
+          <p className="mt-1 text-xs text-gray-400">Add via Cloudflare Pages dashboard after setting here.</p>
         </div>
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Cloudflare Pages Project</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Preview URL</label>
+          <input
+            value={previewUrl}
+            onChange={(e) => setPreviewUrl(e.target.value)}
+            placeholder="e.g. http://localhost:5173"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-gray-400">Used by the in-editor live preview iframe.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">CF Pages Project Name</label>
           <input
             value={cfProject}
             onChange={(e) => setCfProject(e.target.value)}
-            placeholder="e.g. gonex-delhi"
+            placeholder="auto-set when you deploy"
             className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-mono focus:border-indigo-500 focus:outline-none"
           />
+          <p className="mt-1 text-xs text-gray-400">Set automatically when you click Deploy in the editor.</p>
         </div>
         <button
           type="submit"
@@ -110,7 +154,7 @@ function Settings() {
       </form>
 
       {/* Danger zone */}
-      <div className="mt-12 border border-red-200 rounded-xl p-5">
+      <div className="border border-red-200 rounded-xl p-5">
         <h2 className="text-sm font-semibold text-red-700 mb-2">Danger Zone</h2>
         <p className="text-xs text-gray-500 mb-4">Deleting this project removes all content and submissions. This cannot be undone.</p>
         <button
