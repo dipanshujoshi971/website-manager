@@ -1,0 +1,7 @@
+name = "gonex-builder-api"
+main = "src/index.ts"
+compatibility_date = "2024-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Local dev — copy .env.example to .dev.vars and fill in DATABASE_URL
+# Production — set DATABASE_URL in CF dashboard → Workers → Settings → Variables

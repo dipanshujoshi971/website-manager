@@ -1,0 +1,21 @@
+{
+  "name": "gonex-builder-worker",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
+    "drizzle-orm": "^0.36.0",
+    "hono": "^4.3.11"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240524.0",
+    "drizzle-kit": "^0.27.0",
+    "typescript": "^5.4.5",
+    "wrangler": "^3.57.2"
+  }
+}

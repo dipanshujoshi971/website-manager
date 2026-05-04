@@ -1,0 +1,18 @@
+{
+  "name": "gonex-builder",
+  "private": true,
+  "workspaces": ["app", "worker", "site"],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "npm run setup && concurrently \"npm run dev -w worker\" \"npm run dev -w app\"",
+    "dev:all": "npm run setup && concurrently \"npm run dev -w worker\" \"npm run dev -w app\" \"npm run dev -w site\"",
+    "build": "npm run build -w worker && npm run build -w app",
+    "build:site": "npm run build -w site",
+    "db:generate": "node scripts/db.mjs generate",
+    "db:migrate": "node scripts/db.mjs migrate",
+    "db:seed": "node scripts/seed.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
