@@ -14,7 +14,7 @@ type Env = { db: Db; user: SessionUser }
 
 export const deployRouter = new Hono<{ Bindings: Bindings; Variables: Env }>()
 
-deployRouter.use('*', requireAuth, requireRole('super_admin', 'admin'))
+deployRouter.use('*', requireAuth, requireRole('super_admin', 'admin', 'site_owner'))
 
 const EXT_MIME: Record<string, string> = {
   html: 'text/html; charset=utf-8',
