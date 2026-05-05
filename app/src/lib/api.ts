@@ -1,10 +1,9 @@
-const BASE = '/api'
-// Deploy calls must hit the real deployed worker (needs real R2, not local miniflare).
-// Set VITE_WORKER_URL to your deployed worker URL so this works in local dev.
-// In production the same BASE is used for everything.
-const WORKER_BASE = (import.meta.env.VITE_WORKER_URL as string)
-  ? `${(import.meta.env.VITE_WORKER_URL as string).replace(/\/$/, '')}/api`
-  : BASE
+// In dev, Vite proxies /api -> local worker (see vite.config.ts).
+// In prod (Azure SWA), set VITE_WORKER_URL to your deployed worker so requests
+// hit it directly — Azure SWA's external rewrite doesn't forward POST/PUT/DELETE.
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL as string | undefined)?.replace(/\/$/, '')
+const BASE = WORKER_URL ? `${WORKER_URL}/api` : '/api'
+const WORKER_BASE = BASE
 
 const TOKEN_KEY = 'gonex_auth_token'
 
