@@ -253,7 +253,9 @@ function EditContent() {
   async function handleDeploy() {
     setDeploying(true)
     try {
-      const liveUrl = await api.deployLocal(siteId)
+      const liveUrl = import.meta.env.DEV
+        ? await api.deployLocal(siteId)
+        : (await api.deploySite(siteId)).url
       // Refresh site to get updated cfPagesProject / previewUrl
       const updated = await api.getSite(siteId)
       setSite(updated)
