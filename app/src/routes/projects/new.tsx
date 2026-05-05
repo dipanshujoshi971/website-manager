@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, TEMPLATE_TYPES, TEMPLATE_LABELS, TEMPLATE_ICONS, type TemplateType } from '@/lib/api'
+import { useCurrentUser } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 
@@ -10,6 +11,15 @@ export const Route = createFileRoute('/projects/new')({
 
 function NewProject() {
   const navigate = useNavigate()
+  const me = useCurrentUser()
+  const canCreate = me?.role === 'super_admin' || me?.role === 'admin'
+
+  useEffect(() => {
+    if (me && !canCreate) {
+      toast.error('You do not have permission to create projects')
+      navigate({ to: '/' })
+    }
+  }, [me, canCreate, navigate])
   const [name, setName] = useState('')
   const [siteId, setSiteId] = useState('')
   const [template, setTemplate] = useState<TemplateType | ''>('')

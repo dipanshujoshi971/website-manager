@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Menu, X } from "lucide-react";
-import { usePage } from "@/lib/content-context";
+import { usePage, useContent } from "@/lib/content-context";
 import logo from "@/assets/gonex-logo.png";
 
 export function Navbar() {
@@ -9,6 +9,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const global = usePage("global");
+  const { loading } = useContent();
 
   // Hide links the user has toggled off in the builder
   const navLinks = global.navbar.links.filter((l: any) => l.show !== false);
@@ -43,7 +44,15 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
           {showLogo && (
-            <img src={global.logo || logo} alt={global.siteName} className="h-9 w-9 object-contain" />
+            <img
+              src={global.logo || logo}
+              alt={global.siteName}
+              className="h-9 w-9 object-contain"
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (img.src !== logo) img.src = logo;
+              }}
+            />
           )}
           {showName && (
             <span className={`text-lg font-bold tracking-tight ${onDark ? "text-white" : "text-foreground"}`}>
@@ -52,7 +61,7 @@ export function Navbar() {
           )}
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className={`hidden items-center gap-1 md:flex transition-opacity ${loading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           {navLinks.map((l) => (
             <Link
               key={l.to}
@@ -73,7 +82,7 @@ export function Navbar() {
           ))}
         </nav>
 
-        {showCta && (
+        {showCta && !loading && (
           <div className="hidden md:block">
             <a
               href={ctaLink}
@@ -108,7 +117,7 @@ export function Navbar() {
                 {l.label}
               </Link>
             ))}
-            {showCta && (
+            {showCta && !loading && (
               <a
                 href={ctaLink}
                 onClick={() => setOpen(false)}

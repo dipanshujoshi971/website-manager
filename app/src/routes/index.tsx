@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { api, type Site, TEMPLATE_LABELS, TEMPLATE_ICONS } from '@/lib/api'
+import { api, type Site, TEMPLATE_LABELS, TEMPLATE_ICONS, type Role } from '@/lib/api'
+import { useCurrentUser } from '@/lib/auth-context'
 import { ExternalLink, Globe, Inbox, Loader2, Pencil, Rocket, Settings } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
@@ -8,6 +9,7 @@ export const Route = createFileRoute('/')({
 })
 
 function Dashboard() {
+  const me = useCurrentUser()
   const [sites, setSites] = useState<Site[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -19,6 +21,8 @@ function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
+  const role: Role | undefined = me?.role
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
@@ -29,15 +33,21 @@ function Dashboard() {
     <div className="p-8 text-red-600 text-sm">Failed to load projects: {error}</div>
   )
 
+  const canCreate = role === 'super_admin' || role === 'admin'
+
   if (sites.length === 0) return (
     <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-      <p className="text-gray-500 text-sm">No projects yet.</p>
-      <Link
-        to="/projects/new"
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-      >
-        Create your first project
-      </Link>
+      <p className="text-gray-500 text-sm">
+        {canCreate ? 'No projects yet.' : 'You don’t have access to any projects yet. Ask your administrator.'}
+      </p>
+      {canCreate && (
+        <Link
+          to="/projects/new"
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+        >
+          Create your first project
+        </Link>
+      )}
     </div>
   )
 
@@ -46,14 +56,15 @@ function Dashboard() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Projects</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {sites.map((site) => (
-          <SiteCard key={site.id} site={site} />
+          <SiteCard key={site.id} site={site} role={role} />
         ))}
       </div>
     </div>
   )
 }
 
-function SiteCard({ site }: { site: Site }) {
+function SiteCard({ site, role }: { site: Site; role?: Role }) {
+  const canSeeSettings = role === 'super_admin' || role === 'admin'
   const liveUrl = site.cfPagesProject ? `https://${site.cfPagesProject}.pages.dev` : null
   const isDeployed = !!site.cfPagesProject
 
@@ -111,7 +122,7 @@ function SiteCard({ site }: { site: Site }) {
       )}
 
       {/* Not deployed hint */}
-      {!isDeployed && (
+      {!isDeployed && canSeeSettings && (
         <Link
           to="/projects/$siteId/settings"
           params={{ siteId: site.siteId }}
@@ -138,13 +149,15 @@ function SiteCard({ site }: { site: Site }) {
         >
           <Inbox className="h-3.5 w-3.5" /> Forms
         </Link>
-        <Link
-          to="/projects/$siteId/settings"
-          params={{ siteId: site.siteId }}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
-        >
-          <Settings className="h-3.5 w-3.5" />
-        </Link>
+        {canSeeSettings && (
+          <Link
+            to="/projects/$siteId/settings"
+            params={{ siteId: site.siteId }}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </Link>
+        )}
       </div>
     </div>
   )

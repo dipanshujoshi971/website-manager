@@ -6,6 +6,8 @@ import { contentRouter } from './routes/content'
 import { submissionsRouter, contactRouter } from './routes/submissions'
 import { uploadRouter, filesRouter } from './routes/upload'
 import { deployRouter } from './routes/deploy'
+import { authRouter } from './routes/auth'
+import { usersRouter } from './routes/users'
 
 type Bindings = {
   DATABASE_URL: string
@@ -32,6 +34,8 @@ app.use('/api/*', async (c, next) => {
 })
 
 // Routes
+app.route('/api/auth', authRouter)
+app.route('/api/users', usersRouter)
 app.route('/api/sites', sitesRouter)
 app.route('/api/sites/:siteId/content', contentRouter)
 app.route('/api/sites/:siteId/submissions', submissionsRouter)

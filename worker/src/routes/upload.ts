@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { requireAuth } from '../lib/authz'
 
 type Bindings = {
   DATABASE_URL: string
@@ -8,6 +9,8 @@ type Bindings = {
 }
 
 export const uploadRouter = new Hono<{ Bindings: Bindings }>()
+
+uploadRouter.use('*', requireAuth)
 
 // POST /api/upload — store the file in R2, return its public URL.
 uploadRouter.post('/', async (c) => {
@@ -22,8 +25,13 @@ uploadRouter.post('/', async (c) => {
       httpMetadata: { contentType: file.type },
     })
     // Prefer a configured public bucket URL; otherwise serve through this worker.
-    // Use WORKER_URL if set so images uploaded in local dev get production-reachable URLs.
-    const origin = c.env.WORKER_URL?.replace(/\/$/, '') ?? new URL(c.req.url).origin
+    // Match the URL origin to where the file actually lives: when the request is
+    // coming from a localhost dev worker, the bytes are in local miniflare R2 — using
+    // a production WORKER_URL there would 404 from any deployed site. So fall back to
+    // the request origin when running locally and only use WORKER_URL in production.
+    const reqOrigin = new URL(c.req.url).origin
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(reqOrigin)
+    const origin = isLocal ? reqOrigin : (c.env.WORKER_URL?.replace(/\/$/, '') ?? reqOrigin)
     const url = c.env.R2_PUBLIC_URL
       ? `${c.env.R2_PUBLIC_URL}/${key}`
       : `${origin}/api/files/${key}`

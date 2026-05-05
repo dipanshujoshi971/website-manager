@@ -8,7 +8,10 @@
       "mcp__Claude_in_Chrome__tabs_context_mcp",
       "Bash(dir \"C:\\\\Users\\\\user\\\\test\\\\gonex-builder\\\\site\\\\dist\")",
       "Bash(xargs grep *)",
-      "Bash(node scripts/deploy-site.mjs --site-id testing)"
+      "Bash(node scripts/deploy-site.mjs --site-id testing)",
+      "Bash(npx tsc *)",
+      "Bash(node C:/Users/user/test/gonex-builder/scripts/hash-password.mjs 'admin@971')",
+      "Bash(node -e ' *)"
     ]
   }
 }

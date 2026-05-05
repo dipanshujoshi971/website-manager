@@ -1,16 +1,20 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { sites } from '../db/schema'
+import { requireAuth, requireRole } from '../lib/authz'
 import type { Db } from '../db/client'
+import type { SessionUser } from '../lib/auth'
 
 type Bindings = {
   R2_BUCKET?: R2Bucket
   CLOUDFLARE_ACCOUNT_ID?: string
   CLOUDFLARE_API_TOKEN?: string
 }
-type Env = { db: Db }
+type Env = { db: Db; user: SessionUser }
 
 export const deployRouter = new Hono<{ Bindings: Bindings; Variables: Env }>()
+
+deployRouter.use('*', requireAuth, requireRole('super_admin', 'admin'))
 
 const EXT_MIME: Record<string, string> = {
   html: 'text/html; charset=utf-8',

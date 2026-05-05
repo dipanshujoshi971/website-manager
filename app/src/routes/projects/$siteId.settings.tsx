@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { api, type Site, TEMPLATE_LABELS } from '@/lib/api'
+import { useCurrentUser } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import { CheckCircle2, ExternalLink, Loader2, Trash2 } from 'lucide-react'
 
@@ -11,6 +12,16 @@ export const Route = createFileRoute('/projects/$siteId/settings')({
 function Settings() {
   const { siteId } = Route.useParams()
   const navigate = useNavigate()
+  const me = useCurrentUser()
+  const canEditSettings = me?.role === 'super_admin' || me?.role === 'admin'
+  const canDelete = me?.role === 'super_admin'
+
+  useEffect(() => {
+    if (me && !canEditSettings) {
+      toast.error('You do not have access to project settings')
+      navigate({ to: '/' })
+    }
+  }, [me, canEditSettings, navigate])
   const [site, setSite] = useState<Site | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -153,19 +164,21 @@ function Settings() {
         </button>
       </form>
 
-      {/* Danger zone */}
-      <div className="border border-red-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-red-700 mb-2">Danger Zone</h2>
-        <p className="text-xs text-gray-500 mb-4">Deleting this project removes all content and submissions. This cannot be undone.</p>
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-        >
-          {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          {deleting ? 'Deleting...' : 'Delete Project'}
-        </button>
-      </div>
+      {/* Danger zone — super_admin only */}
+      {canDelete && (
+        <div className="border border-red-200 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-red-700 mb-2">Danger Zone</h2>
+          <p className="text-xs text-gray-500 mb-4">Deleting this project removes all content and submissions. This cannot be undone.</p>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {deleting ? 'Deleting...' : 'Delete Project'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { defaultContent } from "./default-content";
 interface ContentContextValue {
   content: SiteContent;
   loading: boolean;
+  siteId: string | null;
 }
 
 const ContentContext = createContext<ContentContextValue | null>(null);
@@ -32,6 +33,7 @@ async function resolveSiteId(): Promise<string | null> {
 export function ContentProvider({ children }: { children: React.ReactNode }) {
   const [content, setContent] = useState<SiteContent>(defaultContent);
   const [loading, setLoading] = useState(true);
+  const [siteId, setSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +45,7 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         return;
       }
+      if (!cancelled) setSiteId(siteId);
       try {
         const res = await fetch(`${API_BASE}/api/sites/${siteId}/content`);
         const row = await res.json();
@@ -79,7 +82,7 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ContentContext.Provider value={{ content, loading }}>
+    <ContentContext.Provider value={{ content, loading, siteId }}>
       {children}
     </ContentContext.Provider>
   );

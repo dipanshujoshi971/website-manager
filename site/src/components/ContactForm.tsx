@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useContent } from "@/lib/content-context";
 
-const SITE_ID = import.meta.env.VITE_SITE_ID as string;
-const API_BASE = import.meta.env.VITE_API_URL as string;
+const API_BASE = (import.meta.env.VITE_API_URL as string) || "";
 
 const schema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100),
@@ -28,6 +28,7 @@ const subjects = [
 ] as const;
 
 export function ContactForm() {
+  const { siteId } = useContent();
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -53,7 +54,7 @@ export function ContactForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          siteId: SITE_ID,
+          siteId,
           fullName: parsed.data.full_name,
           email: parsed.data.email,
           phone: parsed.data.phone || null,

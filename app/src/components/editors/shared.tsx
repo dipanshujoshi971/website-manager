@@ -1,6 +1,9 @@
 import { Plus, Trash2, Upload, Loader2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
+const WORKER_URL = (import.meta.env.VITE_WORKER_URL as string)?.replace(/\/$/, '')
+const UPLOAD_URL = WORKER_URL ? `${WORKER_URL}/api/upload` : '/api/upload'
+
 // ── Field wrapper ────────────────────────────────────────────────────────────
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -76,7 +79,7 @@ export function ImageField({ label, value, onChange, hint }: { label: string; va
     try {
       const form = new FormData()
       form.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      const res = await fetch(UPLOAD_URL, { method: 'POST', body: form })
       if (!res.ok) throw new Error('Upload failed')
       const { url } = await res.json()
       onChange(url)

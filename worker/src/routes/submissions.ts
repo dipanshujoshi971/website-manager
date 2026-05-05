@@ -1,25 +1,35 @@
 import { Hono } from 'hono'
 import { eq, desc } from 'drizzle-orm'
 import { contactSubmissions } from '../db/schema'
+import { requireAuth, userCanAccessSite } from '../lib/authz'
 import type { Db } from '../db/client'
+import type { SessionUser } from '../lib/auth'
 
-type Env = { db: Db }
+type Vars = { db: Db; user: SessionUser }
 
-export const submissionsRouter = new Hono<{ Variables: Env }>()
+export const submissionsRouter = new Hono<{ Variables: Vars }>()
+
+submissionsRouter.use('*', requireAuth)
 
 // GET /api/sites/:siteId/submissions
 submissionsRouter.get('/', async (c) => {
+  const siteId = c.req.param('siteId')
+  if (!(await userCanAccessSite(c, siteId))) return c.json({ error: 'Forbidden' }, 403)
+
   const db = c.get('db')
   const rows = await db
     .select()
     .from(contactSubmissions)
-    .where(eq(contactSubmissions.siteId, c.req.param('siteId')))
+    .where(eq(contactSubmissions.siteId, siteId))
     .orderBy(desc(contactSubmissions.createdAt))
   return c.json(rows)
 })
 
-// PATCH /api/sites/:siteId/submissions/:id/read — mark as read
+// PATCH /api/sites/:siteId/submissions/:id/read
 submissionsRouter.patch('/:id/read', async (c) => {
+  const siteId = c.req.param('siteId')
+  if (!(await userCanAccessSite(c, siteId))) return c.json({ error: 'Forbidden' }, 403)
+
   const db = c.get('db')
   const [updated] = await db
     .update(contactSubmissions)
@@ -30,8 +40,8 @@ submissionsRouter.patch('/:id/read', async (c) => {
   return c.json(updated)
 })
 
-// POST /api/contact — public endpoint called by client sites
-export const contactRouter = new Hono<{ Variables: Env }>()
+// POST /api/contact — PUBLIC endpoint called by customer sites
+export const contactRouter = new Hono<{ Variables: { db: Db } }>()
 
 contactRouter.post('/', async (c) => {
   const db = c.get('db')

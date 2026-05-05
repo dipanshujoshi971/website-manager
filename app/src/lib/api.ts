@@ -6,12 +6,40 @@ const WORKER_BASE = (import.meta.env.VITE_WORKER_URL as string)
   ? `${(import.meta.env.VITE_WORKER_URL as string).replace(/\/$/, '')}/api`
   : BASE
 
+const TOKEN_KEY = 'gonex_auth_token'
+
+export const auth = {
+  getToken(): string | null {
+    try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
+  },
+  setToken(token: string) {
+    try { localStorage.setItem(TOKEN_KEY, token) } catch {}
+  },
+  clear() {
+    try { localStorage.removeItem(TOKEN_KEY) } catch {}
+  },
+}
+
+// Hook so the AuthProvider can react to 401s globally.
+let onUnauthorized: (() => void) | null = null
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn
+}
+
 async function req<T>(method: string, path: string, body?: unknown, base = BASE): Promise<T> {
+  const token = auth.getToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+
   const res = await fetch(`${base}${path}`, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
+  if (res.status === 401) {
+    auth.clear()
+    onUnauthorized?.()
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error((err as any).error ?? res.statusText)
@@ -20,6 +48,20 @@ async function req<T>(method: string, path: string, body?: unknown, base = BASE)
 }
 
 export const api = {
+  // Auth
+  login: (username: string, password: string) =>
+    req<{ token: string; user: AuthUser }>('POST', '/auth/login', { username, password }),
+  logout: () => req<{ ok: boolean }>('POST', '/auth/logout', {}),
+  me: () => req<{ user: AuthUser; sites: string[] }>('GET', '/auth/me'),
+
+  // Users (super_admin only)
+  listUsers: () => req<ManagedUser[]>('GET', '/users'),
+  createUser: (data: CreateUserInput) => req<ManagedUser>('POST', '/users', data),
+  updateUser: (id: string, data: UpdateUserInput) => req<ManagedUser>('PATCH', `/users/${id}`, data),
+  deleteUser: (id: string) => req<{ ok: boolean }>('DELETE', `/users/${id}`),
+  setUserSites: (id: string, sites: string[]) =>
+    req<{ ok: boolean; sites: string[] }>('PUT', `/users/${id}/sites`, { sites }),
+
   // Sites
   listSites: () => req<Site[]>('GET', '/sites'),
   createSite: (data: CreateSiteInput) => req<Site>('POST', '/sites', data),
@@ -151,4 +193,47 @@ export interface CreateSiteInput {
   name: string
   siteId: string
   templateType: TemplateType
+}
+
+export const ROLES = ['super_admin', 'admin', 'site_owner'] as const
+export type Role = (typeof ROLES)[number]
+
+export const ROLE_LABELS: Record<Role, string> = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  site_owner: 'Site Owner',
+}
+
+export interface UserPermissions {
+  canDeploy?: boolean
+  canManageUsers?: boolean
+  canCreateSites?: boolean
+  canDeleteSites?: boolean
+}
+
+export interface AuthUser {
+  id: string
+  username: string
+  role: Role
+  permissions: UserPermissions
+}
+
+export interface ManagedUser extends AuthUser {
+  createdAt: string
+  updatedAt: string
+  sites: string[]
+}
+
+export interface CreateUserInput {
+  username: string
+  password: string
+  role: Role
+  permissions?: UserPermissions
+  sites?: string[]
+}
+
+export interface UpdateUserInput {
+  password?: string
+  role?: Role
+  permissions?: UserPermissions
 }

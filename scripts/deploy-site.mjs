@@ -63,7 +63,20 @@ try {
   process.exit(1)
 }
 
-// ── 2. deploy to CF Pages ─────────────────────────────────────────────────────
+// ── 2. ensure CF Pages project exists ────────────────────────────────────────
+console.log(`\n🔧  Ensuring Cloudflare Pages project "${siteIdArg}" exists...`)
+try {
+  execSync(
+    `npx wrangler pages project create "${siteIdArg}" --production-branch=main`,
+    { cwd: root, stdio: 'pipe', env: process.env }
+  )
+  console.log(`   ✓ Project created.`)
+} catch {
+  // Already exists — that's fine, continue
+  console.log(`   ✓ Project already exists.`)
+}
+
+// ── 3. deploy to CF Pages ─────────────────────────────────────────────────────
 console.log(`\n🚀  Deploying to Cloudflare Pages project "${siteIdArg}"...`)
 try {
   execSync(
@@ -75,7 +88,7 @@ try {
   process.exit(1)
 }
 
-// ── 3. update DB via worker API ───────────────────────────────────────────────
+// ── 4. update DB via worker API ───────────────────────────────────────────────
 if (env.WORKER_URL) {
   console.log('\n💾  Updating site record in database...')
   try {

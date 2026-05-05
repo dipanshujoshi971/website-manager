@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { api, type Site, type SiteContent, TEMPLATE_LABELS } from '@/lib/api'
 import { toast } from 'sonner'
-import { CheckCircle2, ExternalLink, Eye, EyeOff, Globe, Loader2, RefreshCw, Rocket, Save } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ExternalLink, Eye, EyeOff, Globe, Loader2, RefreshCw, Rocket, Save } from 'lucide-react'
 
 // Shared editors
 import { GlobalEditor } from '@/components/editors/GlobalEditor'
@@ -171,12 +171,21 @@ function EditContent() {
   const [saving, setSaving] = useState(false)
   const [deploying, setDeploying] = useState(false)
   const [activeSection, setActiveSection] = useState<string>('')
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ Global: true })
+  const [sectionFilter, setSectionFilter] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewReady, setPreviewReady] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null)
 
   const isLaunchpad = site?.templateType === 'gonex-launchpad'
+
+  // Keep the group containing the active section expanded so users never lose their place
+  useEffect(() => {
+    if (!activeSection) return
+    const owner = LAUNCHPAD_SECTION_GROUPS.find((g) => g.sections.some((s) => s.key === activeSection))
+    if (owner) setExpandedGroups((prev) => (prev[owner.group] ? prev : { ...prev, [owner.group]: true }))
+  }, [activeSection])
 
   // Live editor preview always loads the /site template instance with ?siteId=...
   // We deliberately ignore site.previewUrl / customDomain here — those describe where
@@ -348,34 +357,77 @@ function EditContent() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Section sidebar */}
-        <div className="w-52 border-r border-gray-200 bg-white p-3 shrink-0 overflow-auto">
-          {isLaunchpad ? (
-            // Launchpad: grouped sidebar by page
-            LAUNCHPAD_SECTION_GROUPS.map((group) => (
-              <div key={group.group} className="mb-3">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1">{group.group}</p>
-                {group.sections.map((s) => (
+        <div className="w-60 border-r border-gray-200 bg-gray-50/50 shrink-0 overflow-auto flex flex-col">
+          {/* Search */}
+          <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur border-b border-gray-200 px-3 py-2.5">
+            <input
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value)}
+              placeholder="Search sections..."
+              className="w-full rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
+            />
+          </div>
+
+          <div className="flex-1 p-2">
+            {isLaunchpad ? (
+              // Launchpad: collapsible grouped sidebar by page
+              LAUNCHPAD_SECTION_GROUPS.map((group) => {
+                const filtered = sectionFilter
+                  ? group.sections.filter((s) => s.label.toLowerCase().includes(sectionFilter.toLowerCase()))
+                  : group.sections
+                if (sectionFilter && filtered.length === 0) return null
+                const expanded = sectionFilter ? true : expandedGroups[group.group] ?? false
+                return (
+                  <div key={group.group} className="mb-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedGroups((prev) => ({ ...prev, [group.group]: !expanded }))
+                      }
+                      className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500 hover:bg-gray-200/60"
+                    >
+                      <span>{group.group}</span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+                      />
+                    </button>
+                    {expanded && (
+                      <div className="mt-0.5 space-y-0.5 pl-2">
+                        {filtered.map((s) => (
+                          <SidebarItem
+                            key={s.key}
+                            label={s.label}
+                            active={activeSection === s.key}
+                            onClick={() => setActiveSection(s.key)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            ) : (
+              // Other templates: flat sidebar with optional filter
+              <>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider px-2.5 mt-1 mb-1">Sections</p>
+                {SHARED_SECTIONS.filter((s) =>
+                  !sectionFilter || s.label.toLowerCase().includes(sectionFilter.toLowerCase()),
+                ).map((s) => (
                   <SidebarItem key={s.key} label={s.label} active={activeSection === s.key} onClick={() => setActiveSection(s.key)} />
                 ))}
-              </div>
-            ))
-          ) : (
-            // Other templates: flat sidebar
-            <>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">Sections</p>
-              {SHARED_SECTIONS.map((s) => (
-                <SidebarItem key={s.key} label={s.label} active={activeSection === s.key} onClick={() => setActiveSection(s.key)} />
-              ))}
-              {templateSections.length > 0 && (
-                <>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mt-4 mb-2">Template</p>
-                  {templateSections.map((s) => (
-                    <SidebarItem key={s.key} label={s.label} active={activeSection === s.key} onClick={() => setActiveSection(s.key)} />
-                  ))}
-                </>
-              )}
-            </>
-          )}
+                {templateSections.length > 0 && (
+                  <>
+                    <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider px-2.5 mt-4 mb-1">Template</p>
+                    {templateSections.filter((s) =>
+                      !sectionFilter || s.label.toLowerCase().includes(sectionFilter.toLowerCase()),
+                    ).map((s) => (
+                      <SidebarItem key={s.key} label={s.label} active={activeSection === s.key} onClick={() => setActiveSection(s.key)} />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Editor panel */}
@@ -431,7 +483,11 @@ function SidebarItem({ label, active, onClick }: { label: string; active: boolea
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${active ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
+      className={`w-full text-left rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+        active
+          ? 'bg-indigo-100 text-indigo-700 font-semibold'
+          : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900'
+      }`}
     >
       {label}
     </button>

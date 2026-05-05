@@ -1,39 +1,28 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
-import { sites, siteContent, TEMPLATE_TYPES } from '../db/schema'
+import { eq, inArray } from 'drizzle-orm'
+import { sites, siteContent, userSites, TEMPLATE_TYPES } from '../db/schema'
 import { launchpadDefaultContent } from '../lib/launchpad-default-content'
+import { requireAuth, requireRole, userCanAccessSite } from '../lib/authz'
 import type { Db } from '../db/client'
+import type { SessionUser } from '../lib/auth'
 
-type Env = { db: Db }
+type Vars = { db: Db; user: SessionUser }
 
-export const sitesRouter = new Hono<{ Variables: Env }>()
+export const sitesRouter = new Hono<{ Variables: Vars }>()
 
-// GET /api/sites — list all
-sitesRouter.get('/', async (c) => {
-  const db = c.get('db')
-  const all = await db.select().from(sites).orderBy(sites.createdAt)
-  return c.json(all)
-})
-
-// GET /api/sites/resolve?host=acmecabs.com — resolve hostname → siteId
-// Used by /site at runtime so a single Pages deployment can serve every client.
-// Resolution order:
-//   1. Exact match on customDomain (e.g. acmecabs.com, www.acmecabs.com)
-//   2. Subdomain prefix on *.pages.dev → match siteId or cfPagesProject
+// PUBLIC: hostname → siteId (used by the customer site at runtime).
 sitesRouter.get('/resolve', async (c) => {
   const db = c.get('db')
   const rawHost = c.req.query('host') || ''
   const host = rawHost.toLowerCase().split(':')[0]
   if (!host) return c.json({ error: 'host query param required' }, 400)
 
-  // 1. Exact custom-domain match (try with and without leading "www.")
   const candidates = host.startsWith('www.') ? [host, host.slice(4)] : [host, `www.${host}`]
   for (const candidate of candidates) {
     const [hit] = await db.select().from(sites).where(eq(sites.customDomain, candidate))
     if (hit) return c.json({ siteId: hit.siteId, source: 'customDomain' })
   }
 
-  // 2. *.pages.dev — first label is the project; match siteId or cfPagesProject
   if (host.endsWith('.pages.dev')) {
     const project = host.split('.')[0]
     const [bySiteId] = await db.select().from(sites).where(eq(sites.siteId, project))
@@ -45,8 +34,35 @@ sitesRouter.get('/resolve', async (c) => {
   return c.json({ error: 'No site for host', host }, 404)
 })
 
-// POST /api/sites — create
-sitesRouter.post('/', async (c) => {
+// All other site routes require auth.
+sitesRouter.use('*', requireAuth)
+
+// GET /api/sites — list sites visible to the current user
+sitesRouter.get('/', async (c) => {
+  const db = c.get('db')
+  const user = c.get('user')
+
+  if (user.role === 'super_admin' || user.role === 'admin') {
+    const all = await db.select().from(sites).orderBy(sites.createdAt)
+    return c.json(all)
+  }
+
+  // site_owner: only sites mapped to them
+  const mappings = await db
+    .select({ siteId: userSites.siteId })
+    .from(userSites)
+    .where(eq(userSites.userId, user.id))
+  if (!mappings.length) return c.json([])
+  const all = await db
+    .select()
+    .from(sites)
+    .where(inArray(sites.siteId, mappings.map((m) => m.siteId)))
+    .orderBy(sites.createdAt)
+  return c.json(all)
+})
+
+// POST /api/sites — super_admin or admin only
+sitesRouter.post('/', requireRole('super_admin', 'admin'), async (c) => {
   const db = c.get('db')
   const body = await c.req.json<{ name: string; siteId: string; templateType: string }>()
 
@@ -56,7 +72,6 @@ sitesRouter.post('/', async (c) => {
   if (!TEMPLATE_TYPES.includes(body.templateType as any)) {
     return c.json({ error: 'Invalid templateType' }, 400)
   }
-  // siteId must be URL-safe
   if (!/^[a-z0-9-]+$/.test(body.siteId)) {
     return c.json({ error: 'siteId must be lowercase letters, numbers, and hyphens only' }, 400)
   }
@@ -67,7 +82,6 @@ sitesRouter.post('/', async (c) => {
     templateType: body.templateType as any,
   }).returning()
 
-  // Seed content — launchpad gets full default content, others start empty
   const initialContent = body.templateType === 'gonex-launchpad' ? launchpadDefaultContent : {}
   await db.insert(siteContent).values({ siteId: site.siteId, content: initialContent })
 
@@ -76,14 +90,16 @@ sitesRouter.post('/', async (c) => {
 
 // GET /api/sites/:siteId
 sitesRouter.get('/:siteId', async (c) => {
+  const siteId = c.req.param('siteId')
+  if (!(await userCanAccessSite(c, siteId))) return c.json({ error: 'Forbidden' }, 403)
   const db = c.get('db')
-  const [site] = await db.select().from(sites).where(eq(sites.siteId, c.req.param('siteId')))
+  const [site] = await db.select().from(sites).where(eq(sites.siteId, siteId))
   if (!site) return c.json({ error: 'Not found' }, 404)
   return c.json(site)
 })
 
-// PUT /api/sites/:siteId — update metadata (name, domain, cfPagesProject)
-sitesRouter.put('/:siteId', async (c) => {
+// PUT /api/sites/:siteId — admins only (site_owner cannot edit metadata)
+sitesRouter.put('/:siteId', requireRole('super_admin', 'admin'), async (c) => {
   const db = c.get('db')
   const body = await c.req.json<{ name?: string; customDomain?: string; cfPagesProject?: string }>()
   const [updated] = await db
@@ -95,8 +111,8 @@ sitesRouter.put('/:siteId', async (c) => {
   return c.json(updated)
 })
 
-// DELETE /api/sites/:siteId
-sitesRouter.delete('/:siteId', async (c) => {
+// DELETE /api/sites/:siteId — super_admin only
+sitesRouter.delete('/:siteId', requireRole('super_admin'), async (c) => {
   const db = c.get('db')
   const [deleted] = await db
     .delete(sites)
