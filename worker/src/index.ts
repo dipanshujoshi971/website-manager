@@ -33,16 +33,18 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 
-// Routes
+// Routes — register more specific /api/sites/:siteId/* sub-routers BEFORE the
+// catch-all /api/sites router, so its requireAuth middleware doesn't intercept
+// public GET /content used by deployed customer sites.
 app.route('/api/auth', authRouter)
 app.route('/api/users', usersRouter)
-app.route('/api/sites', sitesRouter)
 app.route('/api/sites/:siteId/content', contentRouter)
 app.route('/api/sites/:siteId/submissions', submissionsRouter)
+app.route('/api/sites/:siteId/deploy', deployRouter)
+app.route('/api/sites', sitesRouter)
 app.route('/api/contact', contactRouter)
 app.route('/api/upload', uploadRouter)
 app.route('/api/files', filesRouter)
-app.route('/api/sites/:siteId/deploy', deployRouter)
 
 app.get('/', (c) => c.json({ ok: true, service: 'gonex-builder-api' }))
 

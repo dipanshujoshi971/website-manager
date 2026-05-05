@@ -2,6 +2,7 @@ import { motion, useInView, useMotionValue, useSpring, type Variants } from "fra
 import { useEffect, useRef } from "react";
 import appStoreBadge from "@/assets/badges/app-store.svg";
 import googlePlayBadge from "@/assets/badges/google-play.svg";
+import { useContent } from "@/lib/content-context";
 
 // ----- Variants -----
 export const fadeUp: Variants = {
@@ -141,10 +142,18 @@ export function Counter({
 export function StoreBadges({
   className = "",
   align = "start",
+  appStoreUrl,
+  playStoreUrl,
 }: {
   className?: string;
   align?: "start" | "center";
+  appStoreUrl?: string;
+  playStoreUrl?: string;
 }) {
+  const { content } = useContent();
+  const appHref = appStoreUrl || content.global.storeLinks.appStore || "#";
+  const playHref = playStoreUrl || content.global.storeLinks.playStore || "#";
+  const isExternal = (href: string) => /^https?:\/\//i.test(href);
   return (
     <div
       className={`flex flex-wrap items-center gap-3 ${
@@ -152,12 +161,14 @@ export function StoreBadges({
       } ${className}`}
     >
       <motion.a
-        href="#"
+        href={appHref}
+        target={isExternal(appHref) ? "_blank" : undefined}
+        rel={isExternal(appHref) ? "noopener noreferrer" : undefined}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.97 }}
         transition={{ type: "spring", stiffness: 400, damping: 18 }}
         className="inline-block"
-        aria-label="Download GoNex on the App Store"
+        aria-label="Download on the App Store"
       >
         <img
           src={appStoreBadge}
@@ -167,12 +178,14 @@ export function StoreBadges({
         />
       </motion.a>
       <motion.a
-        href="#"
+        href={playHref}
+        target={isExternal(playHref) ? "_blank" : undefined}
+        rel={isExternal(playHref) ? "noopener noreferrer" : undefined}
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.97 }}
         transition={{ type: "spring", stiffness: 400, damping: 18 }}
         className="inline-block"
-        aria-label="Get GoNex on Google Play"
+        aria-label="Get it on Google Play"
       >
         <img
           src={googlePlayBadge}

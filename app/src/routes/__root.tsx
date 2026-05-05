@@ -45,6 +45,7 @@ function Root() {
   const { user } = state
   const canCreateProject = user.role === 'super_admin' || user.role === 'admin'
   const canManageUsers = user.role === 'super_admin'
+  const showSidebar = user.role !== 'site_owner'
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -77,14 +78,16 @@ function Root() {
         </div>
       </header>
       <div className="flex flex-1 overflow-hidden">
-        <aside className="w-52 border-r border-gray-200 bg-white p-3 shrink-0">
-          <nav className="space-y-1">
-            <SideLink to="/" icon={<LayoutDashboard className="h-4 w-4" />} label="All Projects" active={pathname === '/'} />
-            {canManageUsers && (
-              <SideLink to="/users" icon={<Users className="h-4 w-4" />} label="Users" active={pathname.startsWith('/users')} />
-            )}
-          </nav>
-        </aside>
+        {showSidebar && (
+          <aside className="w-52 border-r border-gray-200 bg-white p-3 shrink-0">
+            <nav className="space-y-1">
+              <SideLink to="/" icon={<LayoutDashboard className="h-4 w-4" />} label="All Projects" active={pathname === '/'} />
+              {canManageUsers && (
+                <SideLink to="/users" icon={<Users className="h-4 w-4" />} label="Users" active={pathname.startsWith('/users')} />
+              )}
+            </nav>
+          </aside>
+        )}
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>

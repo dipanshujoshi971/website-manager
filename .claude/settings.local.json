@@ -13,7 +13,13 @@
       "Bash(node C:/Users/user/test/gonex-builder/scripts/hash-password.mjs 'admin@971')",
       "Bash(node -e ' *)",
       "Bash(curl -s -o /dev/null -w \"GET /: %{http_code}\\\\n\" https://gonex-builder-api.keshavgoyal5.workers.dev/)",
-      "Bash(curl -s -o /dev/null -w \"POST /api/auth/login \\(empty body\\): %{http_code}\\\\n\" -X POST https://gonex-builder-api.keshavgoyal5.workers.dev/api/auth/login -H \"Content-Type: application/json\" -d \"{}\")"
+      "Bash(curl -s -o /dev/null -w \"POST /api/auth/login \\(empty body\\): %{http_code}\\\\n\" -X POST https://gonex-builder-api.keshavgoyal5.workers.dev/api/auth/login -H \"Content-Type: application/json\" -d \"{}\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "Bash(curl.exe -sL \"https://api.github.com/repos/cloudflare/workers-sdk/contents/packages/wrangler/src/pages?ref=main\")",
+      "Bash(npm install *)",
+      "Bash(npx wrangler *)",
+      "Bash(npm run *)"
     ]
   }
 }
